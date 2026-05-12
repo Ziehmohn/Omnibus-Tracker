@@ -74,7 +74,6 @@ export default function App() {
     const init = async () => {
       setLoading(true);
       try {
-        await seedDatabase();
         await loadData();
       } finally {
         setLoading(false);
@@ -82,20 +81,6 @@ export default function App() {
     };
     init();
   }, []);
-
-  const handleSeed = async () => {
-    setSeeding(true);
-    setLoading(true);
-    try {
-      await seedDatabase();
-      await loadData();
-    } catch (error) {
-      console.error("Error seeding:", error);
-    } finally {
-      setSeeding(false);
-      setLoading(false);
-    }
-  };
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -211,14 +196,10 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
-            <button 
-              onClick={handleSeed}
-              disabled={seeding || loading}
-              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium px-4 py-2 rounded-md transition-colors disabled:opacity-50"
-            >
-              <CopyPlus className="w-4 h-4" />
-              {seeding ? "Simulating..." : "Auto-Simulate Daily Crawl"}
-            </button>
+            <span className="text-sm text-slate-500 hidden sm:inline-flex items-center gap-1">
+              <TrendingDown className="w-4 h-4" />
+              Preiscrawl erfolgt täglich um 8 Uhr
+            </span>
           </div>
         </div>
       </header>
@@ -331,8 +312,8 @@ export default function App() {
                         <input type="text" placeholder="%" className="w-12 text-xs border-slate-300 rounded px-2 py-1 shadow-sm font-normal text-right" value={columnFilters.discountVal} onChange={e => updateColumnFilter('discountVal', e.target.value)} />
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right w-32">
-                      <button onClick={() => handleSort('validSince')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-end w-full flex items-center hover:text-slate-900 focus:outline-none">Gültig seit {getSortIcon('validSince')}</button>
+                    <th scope="col" className="px-6 py-3 text-right w-40">
+                      <button onClick={() => handleSort('validSince')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-end w-full flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Gültig seit (Tage) {getSortIcon('validSince')}</button>
                     </th>
                     <th scope="col" className="px-6 py-3 text-center">
                       <button onClick={() => handleSort('fazit')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-center w-full mb-2 flex items-center hover:text-slate-900 focus:outline-none">Fazit {getSortIcon('fazit')}</button>
@@ -394,7 +375,19 @@ export default function App() {
                                 }
                                 return earliest;
                             }, Number.MAX_SAFE_INTEGER);
-                            return earliestStr !== Number.MAX_SAFE_INTEGER ? new Date(earliestStr).toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'}) : "08.05.2026";
+                            
+                            if (earliestStr !== Number.MAX_SAFE_INTEGER) {
+                                const validSinceDate = new Date(earliestStr);
+                                const diffTime = Math.abs(new Date().getTime() - validSinceDate.getTime());
+                                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                return (
+                                  <div className="flex flex-col items-end">
+                                    <span>{validSinceDate.toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'})}</span>
+                                    <span className="text-xs text-slate-400">({diffDays} Tage)</span>
+                                  </div>
+                                );
+                            }
+                            return "08.05.2026";
                           })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
