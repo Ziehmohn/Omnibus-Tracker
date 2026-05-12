@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "Item": {
+      "title": "Item",
+      "description": "A competitor laminate flooring item being tracked.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "sku": { "type": "string" },
+        "marketplace": { "type": "string" },
+        "url": { "type": "string" },
+        "createdAt": { "type": "number", "description": "Timestamp" },
+        "updatedAt": { "type": "number", "description": "Timestamp" }
+      },
+      "required": ["name", "sku", "marketplace", "url", "createdAt", "updatedAt"]
+    },
+    "PriceRecord": {
+      "title": "Price Record",
+      "description": "Daily price snapshot for an item.",
+      "type": "object",
+      "properties": {
+        "currentPrice": { "type": "number" },
+        "strikethroughPrice": { "type": "number" },
+        "discountPercentage": { "type": "number" },
+        "discountStartDate": { "type": "number", "description": "Timestamp of when discount started" },
+        "date": { "type": "number", "description": "Timestamp of recording" },
+        "itemId": { "type": "string" },
+        "isViolation": { "type": "boolean" }
+      },
+      "required": ["currentPrice", "strikethroughPrice", "discountPercentage", "date", "itemId"]
+    }
+  },
+  "firestore": {
+    "/items/{itemId}": {
+      "schema": { "$ref": "#/entities/Item" },
+      "description": "List of items to track."
+    },
+    "/items/{itemId}/priceRecords/{recordId}": {
+      "schema": { "$ref": "#/entities/PriceRecord" },
+      "description": "Pricing history for an item."
+    }
+  }
+}
