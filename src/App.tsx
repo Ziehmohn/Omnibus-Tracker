@@ -8,13 +8,28 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
-import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X } from "lucide-react";
+import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell } from "recharts";
 
 export default function App() {
   const [items, setItems] = useState<ItemWithLatestPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [isCrawling, setIsCrawling] = useState(false);
+  
+  const handleManualCrawl = async () => {
+    setIsCrawling(true);
+    try {
+      await fetch('/api/crawl', { method: 'POST' });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTimeout(() => {
+        setIsCrawling(false);
+        alert('Crawl im Hintergrund gestartet. Dies kann einige Zeit in Anspruch nehmen. Bitte laden Sie die Seite später neu.');
+      }, 500);
+    }
+  };
   
   const [activeTab, setActiveTab] = useState<"price-history" | "discount-overview">("price-history");
   const [openGraphId, setOpenGraphId] = useState<string | null>(null);
@@ -255,6 +270,14 @@ export default function App() {
               <TrendingDown className="w-4 h-4" />
               Preiscrawl erfolgt täglich um 8 Uhr
             </span>
+            <button
+              onClick={handleManualCrawl}
+              disabled={isCrawling}
+              className="ml-2 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${isCrawling ? 'animate-spin text-blue-600' : 'text-slate-500'}`} />
+              Manuell anstoßen
+            </button>
           </div>
         </div>
       </header>
