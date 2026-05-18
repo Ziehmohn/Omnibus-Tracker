@@ -91,7 +91,12 @@ async function run() {
            // Round to 2 decimals
            strikethroughPrice = Math.round(strikethroughPrice * 100) / 100;
         } else {
-           strikethroughPrice = null;
+           // If there is no discount, set strikethrough to current price
+           strikethroughPrice = currentPriceQM;
+        }
+      } else {
+        if (strikethroughPricePackage === null) {
+          strikethroughPrice = currentPricePackage;
         }
       }
 
@@ -101,7 +106,7 @@ async function run() {
       }
 
       let discountPercentage = null;
-      if (currentPrice !== null && strikethroughPrice !== null && strikethroughPrice > 0) {
+      if (currentPrice !== null && strikethroughPrice !== null && strikethroughPrice > currentPrice) {
         discountPercentage = Math.round((1 - (currentPrice / strikethroughPrice)) * 100);
       }
 
