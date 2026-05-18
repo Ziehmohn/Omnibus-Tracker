@@ -20,13 +20,8 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      # - name: Run Daily Crawl
-      #   run: npx tsx scripts/daily-crawl.ts
-      
-      # - name: Commit new data
-      #   run: |
-      #     git config --local user.email "action@github.com"
-      #     git config --local user.name "GitHub Action"
-      #     git add .
-      #     git commit -m "Auto-Update: Daily Crawl Data" || echo "No changes to commit"
-      #     git push
+      - name: Run Daily Crawl
+        env:
+          FIREBASE_CONFIG_BASE64: ${{ secrets.FIREBASE_CONFIG_BASE64 }} # You have to set this in Github
+        run: npx tsx scrape_all.ts
+

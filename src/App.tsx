@@ -8,16 +8,37 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
-import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink } from "lucide-react";
-import { BarChart, Bar, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell } from "recharts";
+import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell } from "recharts";
 
 export default function App() {
   const [items, setItems] = useState<ItemWithLatestPrice[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   
-  const [filterMarketplace, setFilterMarketplace] = useState("all-marketplaces");
+  const [activeTab, setActiveTab] = useState<"price-history" | "discount-overview">("price-history");
+  const [openGraphId, setOpenGraphId] = useState<string | null>(null);
+
+  const [filterMarketplace, setFilterMarketplace] = useState("");
   const [filterProductset, setFilterProductset] = useState("all-productsets");
+
+  const marketplaces = useMemo(() => {
+    const list = Array.from(new Set(items.map(i => i.marketplace).filter(Boolean))) as string[];
+    return list.sort();
+  }, [items]);
+
+  useEffect(() => {
+    if (marketplaces.length > 0 && !marketplaces.includes(filterMarketplace)) {
+      setFilterMarketplace(marketplaces[0]);
+    }
+  }, [marketplaces, filterMarketplace]);
+
+  const productsets = useMemo(() => {
+    const list = Array.from(new Set(items.map(i => i.productset).filter(Boolean))) as string[];
+    return list.sort();
+  }, [items]);
+
+  const displayedMarketplaces = [filterMarketplace].filter(Boolean);
   
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
   const [columnFilters, setColumnFilters] = useState({
@@ -103,7 +124,7 @@ export default function App() {
 
   const processedItems = useMemo(() => {
     let result = items.filter(item => {
-      if (filterMarketplace !== "all-marketplaces" && item.marketplace !== filterMarketplace) return false;
+      if (item.marketplace !== filterMarketplace) return false;
       if (filterProductset !== "all-productsets" && item.productset !== filterProductset) return false;
       
       const latest = item.latestRecord;
@@ -182,6 +203,40 @@ export default function App() {
     return result;
   }, [items, filterMarketplace, filterProductset, columnFilters, sortConfig]);
 
+  const discountOverviewItems = useMemo(() => {
+    const grouped = new Map<string, {
+      name: string;
+      productset: string;
+      marketplaces: Record<string, {
+        strikethroughPrice: number | null | undefined;
+        currentPrice: number | null | undefined;
+        discountPercentage: number | null | undefined;
+      }>;
+    }>();
+
+    items.forEach(item => {
+      // Apply productset filter if needed
+      if (filterProductset !== "all-productsets" && item.productset !== filterProductset) return;
+
+      const latest = item.latestRecord;
+      if (!grouped.has(item.name)) {
+        grouped.set(item.name, {
+          name: item.name,
+          productset: item.productset,
+          marketplaces: {}
+        });
+      }
+
+      grouped.get(item.name)!.marketplaces[item.marketplace] = {
+        strikethroughPrice: latest?.strikethroughPrice,
+        currentPrice: latest?.currentPrice,
+        discountPercentage: latest?.discountPercentage
+      };
+    });
+
+    return Array.from(grouped.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [items, filterProductset]);
+
   const violationsCount = processedItems.filter(i => i.latestRecord?.isViolation).length;
 
   return (
@@ -225,7 +280,7 @@ export default function App() {
               
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Omnibus Violations</p>
+                  <p className="text-sm font-medium text-slate-500">Violations</p>
                   <p className="text-3xl font-bold mt-1 text-red-600">{violationsCount}</p>
                 </div>
                 <div className="p-3 bg-red-50 text-red-600 rounded-full">
@@ -244,92 +299,136 @@ export default function App() {
               </div>
             </div>
 
+            <div className="mb-6 flex space-x-1 bg-slate-100 p-1 rounded-lg w-max">
+              <button 
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'price-history' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setActiveTab('price-history')}
+              >
+                Preis-Historie
+              </button>
+              <button 
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'discount-overview' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setActiveTab('discount-overview')}
+              >
+                Discount Übersicht
+              </button>
+            </div>
+
             <div className="mb-6 flex justify-between items-center bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
               <h2 className="text-lg font-semibold flex items-center gap-2">
-                Competitor Products List
+                {activeTab === 'price-history' ? 'Competitor Products List' : 'Discount Übersicht'}
               </h2>
               <div className="flex gap-4">
+                {activeTab === 'price-history' && (
+                  <select 
+                    className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium capitalize" 
+                    value={filterMarketplace}
+                    onChange={(e) => setFilterMarketplace(e.target.value)}
+                  >
+                    {marketplaces.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                )}
                 <select 
-                  className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium" 
-                  value={filterMarketplace}
-                  onChange={(e) => setFilterMarketplace(e.target.value)}
-                >
-                  <option value="all-marketplaces">All Marketplaces</option>
-                  <option value="Praxis">Praxis</option>
-                </select>
-                <select 
-                  className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium" 
+                  className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium capitalize" 
                   value={filterProductset}
                   onChange={(e) => setFilterProductset(e.target.value)}
                 >
                   <option value="all-productsets">All Productsets</option>
-                  <option value="Yarenza">Yarenza</option>
+                  {productsets.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
                 </select>
               </div>
             </div>
             
-            <div className="bg-white border rounded-lg overflow-x-auto border-slate-200 shadow-sm">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
+            {activeTab === 'price-history' ? (
+              <div className="bg-white border rounded-lg overflow-x-auto border-slate-200 shadow-sm w-full">
+                <table className="w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
                   <tr>
-                    <th scope="col" className="px-6 py-3 text-left w-32">
-                      <button onClick={() => handleSort('erfasst')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Erfasst seit {getSortIcon('erfasst')}</button>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left">
-                      <button onClick={() => handleSort('name')} className="text-xs font-medium text-slate-600 uppercase tracking-wider mb-2 flex items-center hover:text-slate-900 focus:outline-none">Artikelname {getSortIcon('name')}</button>
-                      <input type="text" placeholder="Suche..." className="w-full text-xs border-slate-300 rounded px-2 py-1 shadow-sm font-normal" value={columnFilters.name} onChange={e => updateColumnFilter('name', e.target.value)} />
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right group/th">
-                      <button onClick={() => handleSort('regularPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-end w-full mb-2 flex items-center hover:text-slate-900 focus:outline-none">Regulärer Preis {getSortIcon('regularPrice')}</button>
-                      <div className="flex justify-end gap-1 float-right">
-                        <select className="text-xs border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.regularPriceOp} onChange={e => updateColumnFilter('regularPriceOp', e.target.value)}>
-                          <option value="=">=</option>
-                          <option value=">">&gt;</option>
-                          <option value="<">&lt;</option>
-                        </select>
-                        <input type="text" placeholder="Wert" className="w-14 text-xs border-slate-300 rounded px-2 py-1 shadow-sm font-normal text-right" value={columnFilters.regularPriceVal} onChange={e => updateColumnFilter('regularPriceVal', e.target.value)} />
+                    <th scope="col" className="px-2 py-2 text-left w-24 align-top">
+                      <div className="flex flex-col h-16 justify-between items-start">
+                        <button onClick={() => handleSort('erfasst')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Hinzugefügt am {getSortIcon('erfasst')}</button>
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right group/th">
-                      <button onClick={() => handleSort('currentPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-end w-full mb-2 flex items-center hover:text-slate-900 focus:outline-none">Aktueller Preis {getSortIcon('currentPrice')}</button>
-                      <div className="flex justify-end gap-1 float-right">
-                        <select className="text-xs border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.currentPriceOp} onChange={e => updateColumnFilter('currentPriceOp', e.target.value)}>
-                          <option value="=">=</option>
-                          <option value=">">&gt;</option>
-                          <option value="<">&lt;</option>
-                        </select>
-                        <input type="text" placeholder="Wert" className="w-14 text-xs border-slate-300 rounded px-2 py-1 shadow-sm font-normal text-right" value={columnFilters.currentPriceVal} onChange={e => updateColumnFilter('currentPriceVal', e.target.value)} />
+                    <th scope="col" className="px-2 py-2 text-left align-top max-w-[200px]">
+                      <div className="flex flex-col h-16 justify-between items-start w-full">
+                        <button onClick={() => handleSort('name')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Artikelname {getSortIcon('name')}</button>
+                        <input type="text" placeholder="Suche..." className="w-full text-xs border border-slate-300 rounded px-2 py-1 shadow-sm font-normal min-w-[120px]" value={columnFilters.name} onChange={e => updateColumnFilter('name', e.target.value)} />
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right group/th">
-                      <button onClick={() => handleSort('discount')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-end w-full mb-2 flex items-center hover:text-slate-900 focus:outline-none">Discount {getSortIcon('discount')}</button>
-                      <div className="flex justify-end gap-1 float-right">
-                        <select className="text-xs border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.discountOp} onChange={e => updateColumnFilter('discountOp', e.target.value)}>
-                          <option value="=">=</option>
-                          <option value=">">&gt;</option>
-                          <option value="<">&lt;</option>
-                        </select>
-                        <input type="text" placeholder="%" className="w-12 text-xs border-slate-300 rounded px-2 py-1 shadow-sm font-normal text-right" value={columnFilters.discountVal} onChange={e => updateColumnFilter('discountVal', e.target.value)} />
+                    <th scope="col" className="px-2 py-2 text-left align-top w-28">
+                      <div className="flex flex-col h-16 justify-between items-start">
+                        <button onClick={() => handleSort('marketplace')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Marktplatz {getSortIcon('marketplace')}</button>
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right w-40">
-                      <button onClick={() => handleSort('validSince')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-end w-full flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Gültig seit (Tage) {getSortIcon('validSince')}</button>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-center">
-                      <button onClick={() => handleSort('fazit')} className="text-xs font-medium text-slate-600 uppercase tracking-wider justify-center w-full mb-2 flex items-center hover:text-slate-900 focus:outline-none">Fazit {getSortIcon('fazit')}</button>
-                      <div className="flex flex-col items-start text-xs font-normal text-slate-600 gap-1 mx-auto w-max bg-white p-1 rounded">
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox" checked={columnFilters.fazitCompliant as any} onChange={e => updateColumnFilter('fazitCompliant', e.target.checked as any)} className="rounded text-blue-600 border-slate-300 focus:ring-blue-500" />
-                          Compliant
-                        </label>
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input type="checkbox" checked={columnFilters.fazitViolation as any} onChange={e => updateColumnFilter('fazitViolation', e.target.checked as any)} className="rounded text-blue-600 border-slate-300 focus:ring-blue-500" />
-                          Violation
-                        </label>
+                    <th scope="col" className="px-2 py-2 text-right group/th align-top">
+                      <div className="flex flex-col h-16 justify-between items-end">
+                        <button onClick={() => handleSort('regularPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Reg. Preis {getSortIcon('regularPrice')}</button>
+                        <div className="flex justify-end gap-1">
+                          <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.regularPriceOp} onChange={e => updateColumnFilter('regularPriceOp', e.target.value)}>
+                            <option value="=">=</option>
+                            <option value=">">&gt;</option>
+                            <option value="<">&lt;</option>
+                          </select>
+                          <input type="text" placeholder="Wert" className="w-12 text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.regularPriceVal} onChange={e => updateColumnFilter('regularPriceVal', e.target.value)} />
+                        </div>
                       </div>
                     </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Graph
+                    {displayedMarketplaces.map(marketplace => (
+                      <th key={`th-${marketplace}`} scope="col" className="px-2 py-2 text-right group/th align-top">
+                        <div className="flex flex-col h-16 justify-between items-end">
+                          <button onClick={() => handleSort('currentPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Preis ({marketplace}) {getSortIcon('currentPrice')}</button>
+                          <div className="flex justify-end gap-1">
+                            <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.currentPriceOp} onChange={e => updateColumnFilter('currentPriceOp', e.target.value)}>
+                              <option value="=">=</option>
+                              <option value=">">&gt;</option>
+                              <option value="<">&lt;</option>
+                            </select>
+                            <input type="text" placeholder="Wert" className="w-12 text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.currentPriceVal} onChange={e => updateColumnFilter('currentPriceVal', e.target.value)} />
+                          </div>
+                        </div>
+                      </th>
+                    ))}
+                    <th scope="col" className="px-2 py-2 text-right group/th align-top">
+                      <div className="flex flex-col h-16 justify-between items-end">
+                        <button onClick={() => handleSort('discount')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Discount {getSortIcon('discount')}</button>
+                        <div className="flex justify-end gap-1">
+                          <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.discountOp} onChange={e => updateColumnFilter('discountOp', e.target.value)}>
+                            <option value="=">=</option>
+                            <option value=">">&gt;</option>
+                            <option value="<">&lt;</option>
+                          </select>
+                          <input type="text" placeholder="%" className="w-10 text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.discountVal} onChange={e => updateColumnFilter('discountVal', e.target.value)} />
+                        </div>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-2 py-2 text-right align-top">
+                      <div className="flex flex-col h-16 justify-between items-end">
+                        <button onClick={() => handleSort('validSince')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Gültig seit {getSortIcon('validSince')}</button>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-2 py-2 text-center w-28 align-top">
+                      <div className="flex flex-col h-16 justify-between items-center">
+                        <button onClick={() => handleSort('fazit')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Fazit {getSortIcon('fazit')}</button>
+                        <div className="flex flex-col items-start text-[10px] leading-tight font-normal text-slate-600 gap-0.5 mx-auto w-max bg-white p-1 rounded border border-slate-200">
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" checked={columnFilters.fazitCompliant as any} onChange={e => updateColumnFilter('fazitCompliant', e.target.checked as any)} className="rounded text-blue-600 border-slate-300 focus:ring-blue-500 w-3 h-3" />
+                            Compliant
+                          </label>
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" checked={columnFilters.fazitViolation as any} onChange={e => updateColumnFilter('fazitViolation', e.target.checked as any)} className="rounded text-blue-600 border-slate-300 focus:ring-blue-500 w-3 h-3" />
+                            Violation
+                          </label>
+                        </div>
+                      </div>
+                    </th>
+                    <th scope="col" className="px-2 py-2 text-right text-xs font-medium text-slate-500 uppercase tracking-wider w-16 align-top">
+                      <div className="flex flex-col h-16 justify-between items-end">
+                        <span>Graph</span>
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -344,41 +443,57 @@ export default function App() {
                     const latest = item.latestRecord;
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 group">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500">
                            {item.history.length > 0 ? new Date(item.history[item.history.length - 1].date || 1715126400000).toLocaleDateString('de-DE') : "-"}
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-900 transition-colors">
-                          <div className="flex items-center gap-2 max-w-sm">
-                            <span className="line-clamp-2" title={item.name}>
+                        <td className="px-2 py-2 text-sm text-slate-900 transition-colors">
+                          <div className="flex items-center gap-2 max-w-[200px]">
+                            <span className="line-clamp-1 truncate" title={item.name}>
                               {item.name}
                             </span>
-                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blue-600 shrink-0" title="Auf Praxis.nl ansehen">
-                               <ExternalLink className="w-4 h-4" />
+                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blue-600 shrink-0" title={`Auf ${item.marketplace} ansehen`}>
+                              <ExternalLink className="w-4 h-4" />
                             </a>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
+                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-left capitalize truncate max-w-[100px]" title={item.marketplace}>
+                          {item.marketplace}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
                           {latest?.strikethroughPrice ? `€ ${latest.strikethroughPrice.toFixed(2)}` : "-"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 text-right">
-                          € {latest?.currentPrice.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
+                        {displayedMarketplaces.map(marketplace => (
+                          <td key={`td-${marketplace}`} className="px-2 py-2 whitespace-nowrap text-sm font-medium text-slate-900 text-right">
+                            {item.marketplace === marketplace ? (latest ? `€ ${latest.currentPrice.toFixed(2)}` : "-") : "-"}
+                          </td>
+                        ))}
+                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
                           {latest?.discountPercentage ? <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-xs font-medium">-{latest.discountPercentage}%</span> : "-"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
+                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
                           {(() => {
                             if (!latest) return "-";
-                            const earliestStr = item.history.reduce((earliest, r) => {
-                                if (r.currentPrice === latest.currentPrice) {
-                                    return r.date < earliest ? r.date : earliest;
-                                }
-                                return earliest;
-                            }, Number.MAX_SAFE_INTEGER);
                             
-                            if (earliestStr !== Number.MAX_SAFE_INTEGER) {
-                                const validSinceDate = new Date(earliestStr);
-                                const diffTime = Math.abs(new Date().getTime() - validSinceDate.getTime());
+                            let validSinceDate: Date | null = null;
+                            if (latest.discountStartDate) {
+                                validSinceDate = new Date(latest.discountStartDate);
+                            } else {
+                                const earliestStr = item.history.reduce((earliest: number, r: any) => {
+                                    if (r.currentPrice === latest.currentPrice) {
+                                        return r.date < earliest ? r.date : earliest;
+                                    }
+                                    return earliest;
+                                }, Number.MAX_SAFE_INTEGER);
+                                
+                                if (earliestStr !== Number.MAX_SAFE_INTEGER) {
+                                    validSinceDate = new Date(earliestStr);
+                                }
+                            }
+                            
+                            if (validSinceDate) {
+                                const todayDate = new Date();
+                                const diffTime = Date.UTC(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()) - 
+                                                 Date.UTC(validSinceDate.getFullYear(), validSinceDate.getMonth(), validSinceDate.getDate());
                                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                                 return (
                                   <div className="flex flex-col items-end">
@@ -387,43 +502,47 @@ export default function App() {
                                   </div>
                                 );
                             }
-                            return "08.05.2026";
+                            return <span className="text-slate-400 block w-full">-</span>;
                           })()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <td className="px-2 py-2 whitespace-nowrap text-center">
                           {latest?.isViolation ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              Omnibus Violation
+                              Violation
                             </span>
                           ) : (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                              Omnibus Compliant
+                              Compliant
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
-                           <div className="relative inline-block group/graph">
-                              <button className="text-slate-400 hover:text-blue-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-50">
+                        <td className="px-2 py-2 whitespace-nowrap text-right text-sm font-medium relative">
+                           <div className="relative inline-block">
+                              <button onClick={() => setOpenGraphId(item.id)} className="text-slate-400 hover:text-blue-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-50">
                                 <TrendingDown className="w-5 h-5" />
                               </button>
-                              <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-72 bg-white border border-slate-200 rounded-lg shadow-xl p-4 hidden group-hover/graph:block z-20">
-                                <h4 className="text-xs font-semibold text-slate-500 mb-2">Price History (Last 4 Days)</h4>
-                                <div className="h-40 w-full">
-                                    <BarChart width={250} height={150} data={[...item.history].reverse().map(r => ({
-                                      date: new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
-                                      price: r.currentPrice
-                                    }))} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                                      <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                      <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fontSize: 10 }} />
-                                      <RechartsTooltip cursor={{fill: '#f1f5f9'}} contentStyle={{fontSize: '12px'}} formatter={(val: number) => [`€${val.toFixed(2)}`, 'Preis']} />
-                                      <Bar dataKey="price" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                                        {item.history.map((entry, index) => (
-                                          <Cell key={`cell-${index}`} fill="#3b82f6" />
-                                        ))}
-                                      </Bar>
-                                    </BarChart>
-                                </div>
-                              </div>
+                              {openGraphId === item.id && (
+                                <>
+                                  <div className="fixed inset-0 z-10" onClick={() => setOpenGraphId(null)}></div>
+                                  <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-72 bg-white border border-slate-200 rounded-lg shadow-xl p-4 z-20">
+                                    <button onClick={() => setOpenGraphId(null)} className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 rounded">
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                    <h4 className="text-xs font-semibold text-slate-500 mb-2 pr-6 text-left">Price History</h4>
+                                    <div className="h-40 w-full">
+                                        <LineChart width={250} height={150} data={[...item.history].reverse().map(r => ({
+                                          date: new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
+                                          price: r.currentPrice
+                                        }))} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                                          <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                          <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} />
+                                          <RechartsTooltip contentStyle={{fontSize: '12px'}} formatter={(val: number) => [`€${val.toFixed(2)}`, 'Preis']} />
+                                          <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                                        </LineChart>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                            </div>
                         </td>
                       </tr>
@@ -432,6 +551,52 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+            ) : (
+              <div className="bg-white border rounded-lg overflow-x-auto border-slate-200 shadow-sm">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th scope="col" className="px-2 py-2 text-left w-20 text-xs font-medium text-slate-500 uppercase tracking-wider">Lfd. Nr.</th>
+                      <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Artikelname</th>
+                      {marketplaces.map(marketplace => (
+                        <th key={marketplace} scope="col" className="px-2 py-2 text-center text-xs font-medium text-slate-500 uppercase tracking-wider capitalize">{marketplace}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {discountOverviewItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={marketplaces.length + 2} className="px-6 py-10 text-center text-slate-500">
+                          Keine Artikel gefunden, die den Filterkriterien entsprechen.
+                        </td>
+                      </tr>
+                    ) : discountOverviewItems.map((group, idx) => (
+                      <tr key={group.name} className="hover:bg-slate-50">
+                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500">{idx + 1}</td>
+                        <td className="px-2 py-2 text-sm font-medium text-slate-900 border-r border-slate-100">
+                          <div className="line-clamp-1 truncate max-w-[300px]" title={group.name}>{group.name}</div>
+                        </td>
+                        {marketplaces.map(marketplace => {
+                          const mData = group.marketplaces[marketplace];
+                          return (
+                            <td key={marketplace} className="px-2 py-2 whitespace-nowrap border-r border-slate-100 text-center">
+                              {mData?.discountPercentage ? (
+                                <div className="flex flex-col items-center gap-1 text-emerald-600">
+                                  <ShieldCheck className="w-5 h-5 mx-auto" aria-label="Discount active" />
+                                  <span className="text-xs font-bold text-slate-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">-{mData.discountPercentage}%</span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 font-bold">-</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </>
         )}
       </main>
