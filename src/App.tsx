@@ -8,7 +8,7 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
-import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw } from "lucide-react";
+import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell } from "recharts";
 
 export default function App() {
@@ -31,8 +31,55 @@ export default function App() {
     }
   };
   
-  const [activeTab, setActiveTab] = useState<"price-history" | "discount-overview">("price-history");
+  const [activeTab, setActiveTab] = useState<"omnibus" | "discount-overview" | "competitors">("omnibus");
   const [openGraphId, setOpenGraphId] = useState<string | null>(null);
+
+  const competitorDetections = [
+    { id: '1', brand: 'Kronotex', marketplace: 'Hornbach', activeListings: 50, lastSeen: 'Heute' },
+    { id: '2', brand: 'Kronotex', marketplace: 'Praxis', activeListings: 40, lastSeen: 'Heute' },
+    { id: '3', brand: 'Kronotex', marketplace: 'OTTO', activeListings: 55, lastSeen: 'Heute' },
+    { id: '4', brand: 'Parador', marketplace: 'Hornbach', activeListings: 35, lastSeen: 'Heute' },
+    { id: '5', brand: 'Parador', marketplace: 'OTTO', activeListings: 54, lastSeen: 'Heute' },
+    { id: '6', brand: 'Meister', marketplace: 'Hornbach', activeListings: 120, lastSeen: 'Gestern' },
+    { id: '7', brand: 'Meister', marketplace: 'Praxis', activeListings: 90, lastSeen: 'Gestern' },
+    { id: '8', brand: 'Tarkett', marketplace: 'Praxis', activeListings: 20, lastSeen: 'Heute' },
+    { id: '9', brand: 'Tarkett', marketplace: 'Obi', activeListings: 25, lastSeen: 'Heute' },
+    { id: '10', brand: 'Kaindl', marketplace: 'OTTO', activeListings: 120, lastSeen: 'Heute' },
+    { id: '11', brand: 'Classen', marketplace: 'Hornbach', activeListings: 60, lastSeen: 'Gestern' },
+  ];
+
+  const [competitorGroupBy, setCompetitorGroupBy] = useState<"platform" | "brand">("platform");
+  const [competitorFilter, setCompetitorFilter] = useState("all");
+
+  const competitorUniqueBrands = Array.from(new Set(competitorDetections.map(d => d.brand))).sort();
+  const competitorUniquePlatforms = Array.from(new Set(competitorDetections.map(d => d.marketplace))).sort();
+
+  const filteredDetections = useMemo(() => {
+    return competitorDetections.filter(d => {
+      if (competitorFilter === 'all') return true;
+      if (competitorGroupBy === 'platform') {
+        return d.marketplace === competitorFilter;
+      } else {
+        return d.brand === competitorFilter;
+      }
+    });
+  }, [competitorFilter, competitorGroupBy]);
+
+  const groupedCompetitors = useMemo(() => {
+    const map = new Map();
+    filteredDetections.forEach(d => {
+      const gThis = competitorGroupBy === 'platform' ? d.marketplace : d.brand;
+      const gThat = competitorGroupBy === 'platform' ? d.brand : d.marketplace;
+      
+      if (!map.has(gThis)) {
+        map.set(gThis, { name: gThis, children: [], totalListings: 0 });
+      }
+      const group = map.get(gThis);
+      group.children.push({ name: gThat, ...d });
+      group.totalListings += d.activeListings;
+    });
+    return Array.from(map.values()).sort((a,b) => a.name.localeCompare(b.name));
+  }, [filteredDetections, competitorGroupBy]);
 
   const [filterMarketplace, setFilterMarketplace] = useState("");
   const [filterProductset, setFilterProductset] = useState("all-productsets");
@@ -255,121 +302,255 @@ export default function App() {
   const violationsCount = processedItems.filter(i => i.latestRecord?.isViolation).length;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <img src="https://cdn.egger.com/img/cms/ff58d5b2-cb11-41dc-ba72-5cec737f1c8a/def606a7-b410-40af-bc8a-34a5e12bf3ca/ORIGINAL/gen_egger_logo_de.svg" alt="EGGER Logo" className="h-6" />
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight border-l border-slate-300 pl-4">Omnibus Tracker</h1>
+    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex shrink-0">
+        <div className="p-4 bg-slate-950 flex items-center gap-3">
+          <img src="https://cdn.egger.com/img/cms/ff58d5b2-cb11-41dc-ba72-5cec737f1c8a/def606a7-b410-40af-bc8a-34a5e12bf3ca/ORIGINAL/gen_egger_logo_de.svg" alt="EGGER" className="h-5 brightness-0 invert" />
+          <span className="font-bold text-white tracking-tight">E-Com Dashboard</span>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto py-4">
+          <div className="px-4 mb-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Discount Tracking</p>
+          </div>
+          <nav className="space-y-1 px-2">
+            <button 
+              onClick={() => setActiveTab('omnibus')}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'omnibus' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+            >
+              <TrendingDown className="w-4 h-4" />
+              Omnibus tracking
+            </button>
+            <button 
+              onClick={() => setActiveTab('discount-overview')}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'discount-overview' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+            >
+              <Percent className="w-4 h-4" />
+              Discount overview
+            </button>
+          </nav>
+
+          <div className="px-4 mt-8 mb-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Market Analysis</p>
+          </div>
+          <nav className="space-y-1 px-2">
+            <button 
+              onClick={() => setActiveTab('competitors')}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'competitors' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+            >
+              <Users className="w-4 h-4" />
+              Competitors
+            </button>
+          </nav>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="bg-white border-b border-slate-200 shrink-0">
+          <div className="px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-slate-800 tracking-tight">
+              {activeTab === 'omnibus' && 'Omnibus tracking'}
+              {activeTab === 'discount-overview' && 'Discount overview'}
+              {activeTab === 'competitors' && 'Competitors'}
+            </h2>
+            
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-slate-500 hidden sm:inline-flex items-center gap-1">
+                <TrendingDown className="w-4 h-4" />
+                Preiscrawl erfolgt täglich um 8 Uhr
+              </span>
+              <button
+                onClick={handleManualCrawl}
+                disabled={isCrawling}
+                className="ml-2 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${isCrawling ? 'animate-spin text-blue-600' : 'text-slate-500'}`} />
+                Manuell anstoßen
+              </button>
             </div>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-500 hidden sm:inline-flex items-center gap-1">
-              <TrendingDown className="w-4 h-4" />
-              Preiscrawl erfolgt täglich um 8 Uhr
-            </span>
-            <button
-              onClick={handleManualCrawl}
-              disabled={isCrawling}
-              className="ml-2 inline-flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${isCrawling ? 'animate-spin text-blue-600' : 'text-slate-500'}`} />
-              Manuell anstoßen
-            </button>
-          </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center p-20 text-slate-400">
-            <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin mb-4" />
-            <p>Loading competitor data...</p>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Tracked Items</p>
-                  <p className="text-3xl font-bold mt-1">{processedItems.length}</p>
+        <main className="flex-1 overflow-auto bg-slate-50 p-4 sm:p-6 lg:p-8">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center p-20 text-slate-400">
+              <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin mb-4" />
+              <p>Loading overview data...</p>
+            </div>
+          ) : activeTab === 'competitors' ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-500">Active Platforms</p>
+                    <p className="text-3xl font-bold mt-1 text-slate-900">{competitorUniquePlatforms.length}</p>
+                  </div>
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full">
+                    <Store className="w-6 h-6" />
+                  </div>
                 </div>
-                <div className="p-3 bg-slate-100 text-slate-600 rounded-full">
-                  <TrendingDown className="w-6 h-6" />
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-500">Tracked Brands</p>
+                    <p className="text-3xl font-bold mt-1 text-slate-900">{competitorUniqueBrands.length}</p>
+                  </div>
+                  <div className="p-3 bg-slate-100 text-slate-600 rounded-full">
+                    <Users className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-white p-4 rounded-lg border border-slate-200 shadow-sm gap-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800">
+                  Competitor Analysis
+                </h2>
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                  <div className="flex border border-slate-300 rounded-md overflow-hidden bg-slate-100 p-0.5">
+                    <button
+                      className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${competitorGroupBy === 'platform' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      onClick={() => { setCompetitorGroupBy('platform'); setCompetitorFilter('all'); }}
+                    >
+                      Group by Platform
+                    </button>
+                    <button
+                      className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${competitorGroupBy === 'brand' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                      onClick={() => { setCompetitorGroupBy('brand'); setCompetitorFilter('all'); }}
+                    >
+                      Group by Brand
+                    </button>
+                  </div>
+                  
+                  <select 
+                    className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    value={competitorFilter}
+                    onChange={(e) => setCompetitorFilter(e.target.value)}
+                  >
+                    <option value="all">All {competitorGroupBy === 'platform' ? 'Platforms' : 'Brands'}</option>
+                    {(competitorGroupBy === 'platform' ? competitorUniquePlatforms : competitorUniqueBrands).map(v => (
+                      <option key={v} value={v}>{v}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Violations</p>
-                  <p className="text-3xl font-bold mt-1 text-red-600">{violationsCount}</p>
-                </div>
-                <div className="p-3 bg-red-50 text-red-600 rounded-full">
-                  <AlertTriangle className="w-6 h-6" />
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Compliant Items</p>
-                  <p className="text-3xl font-bold mt-1 text-emerald-600">{processedItems.length - violationsCount}</p>
-                </div>
-                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-full">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-6 flex space-x-1 bg-slate-100 p-1 rounded-lg w-max">
-              <button 
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'price-history' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-                onClick={() => setActiveTab('price-history')}
-              >
-                Preis-Historie
-              </button>
-              <button 
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'discount-overview' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-                onClick={() => setActiveTab('discount-overview')}
-              >
-                Discount Übersicht
-              </button>
-            </div>
-
-            <div className="mb-6 flex justify-between items-center bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                {activeTab === 'price-history' ? 'Competitor Products List' : 'Discount Übersicht'}
-              </h2>
-              <div className="flex gap-4">
-                {activeTab === 'price-history' && (
-                  <select 
-                    className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium capitalize" 
-                    value={filterMarketplace}
-                    onChange={(e) => setFilterMarketplace(e.target.value)}
-                  >
-                    {marketplaces.map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                )}
-                <select 
-                  className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium capitalize" 
-                  value={filterProductset}
-                  onChange={(e) => setFilterProductset(e.target.value)}
-                >
-                  <option value="all-productsets">All Productsets</option>
-                  {productsets.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            
-            {activeTab === 'price-history' ? (
               <div className="bg-white border rounded-lg overflow-x-auto border-slate-200 shadow-sm w-full">
                 <table className="w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        {competitorGroupBy === 'platform' ? 'Platform' : 'Brand / Competitor'}
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        {competitorGroupBy === 'platform' ? 'Detected Brands' : 'Active Platforms'}
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                        Total Identified Products
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-slate-200">
+                    {groupedCompetitors.map((group) => (
+                      <tr key={group.name} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                          {group.name}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-500">
+                          <div className="flex flex-wrap gap-2">
+                             {group.children.map((child: any) => (
+                               <span key={child.id} className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1 hover:bg-slate-200 cursor-default">
+                                 {child.name}
+                                 <span className="text-slate-400">({child.activeListings})</span>
+                               </span>
+                             ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 text-right font-medium">
+                          {group.totalListings}
+                        </td>
+                      </tr>
+                    ))}
+                    {groupedCompetitors.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-8 text-center text-sm text-slate-500">
+                          No results found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'omnibus' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">Tracked Items</p>
+                      <p className="text-3xl font-bold mt-1">{processedItems.length}</p>
+                    </div>
+                    <div className="p-3 bg-slate-100 text-slate-600 rounded-full">
+                      <TrendingDown className="w-6 h-6" />
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">Violations</p>
+                      <p className="text-3xl font-bold mt-1 text-red-600">{violationsCount}</p>
+                    </div>
+                    <div className="p-3 bg-red-50 text-red-600 rounded-full">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">Compliant Items</p>
+                      <p className="text-3xl font-bold mt-1 text-emerald-600">{processedItems.length - violationsCount}</p>
+                    </div>
+                    <div className="p-3 bg-emerald-50 text-emerald-600 rounded-full">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-6 flex justify-between items-center bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                <h2 className="text-lg font-semibold flex items-center gap-2 text-slate-800">
+                  {activeTab === 'omnibus' ? 'Omnibus Products List' : 'Discount Übersicht'}
+                </h2>
+                <div className="flex gap-4">
+                  {activeTab === 'omnibus' && (
+                    <select 
+                      className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium capitalize outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      value={filterMarketplace}
+                      onChange={(e) => setFilterMarketplace(e.target.value)}
+                    >
+                      {marketplaces.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  )}
+                  <select 
+                    className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium capitalize outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    value={filterProductset}
+                    onChange={(e) => setFilterProductset(e.target.value)}
+                  >
+                    <option value="all-productsets">All Productsets</option>
+                    {productsets.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {activeTab === 'omnibus' ? (
+                <div className="bg-white border rounded-lg overflow-x-auto border-slate-200 shadow-sm w-full">
+                  <table className="w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
                   <tr>
                     <th scope="col" className="px-2 py-2 text-left w-24 align-top">
                       <div className="flex flex-col h-16 justify-between items-start">
@@ -622,7 +803,8 @@ export default function App() {
             )}
           </>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
