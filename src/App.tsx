@@ -21,13 +21,11 @@ export default function App() {
     setIsCrawling(true);
     try {
       await fetch('/api/crawl', { method: 'POST' });
+      await loadData();
     } catch (e) {
       console.error(e);
     } finally {
-      setTimeout(() => {
-        setIsCrawling(false);
-        alert('Crawl im Hintergrund gestartet. Dies kann einige Zeit in Anspruch nehmen. Bitte laden Sie die Seite später neu.');
-      }, 500);
+      setIsCrawling(false);
     }
   };
   
@@ -273,6 +271,7 @@ export default function App() {
         strikethroughPrice: number | null | undefined;
         currentPrice: number | null | undefined;
         discountPercentage: number | null | undefined;
+        url: string;
       }>;
     }>();
 
@@ -292,7 +291,8 @@ export default function App() {
       grouped.get(item.name)!.marketplaces[item.marketplace] = {
         strikethroughPrice: latest?.strikethroughPrice,
         currentPrice: latest?.currentPrice,
-        discountPercentage: latest?.discountPercentage
+        discountPercentage: latest?.discountPercentage,
+        url: item.url
       };
     });
 
@@ -785,10 +785,15 @@ export default function App() {
                           return (
                             <td key={marketplace} className="px-2 py-2 whitespace-nowrap border-r border-slate-100 text-center">
                               {mData?.discountPercentage ? (
-                                <div className="flex flex-col items-center gap-1 text-emerald-600">
+                                <a href={mData.url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 text-emerald-600 hover:opacity-80 transition-opacity" title={`Auf ${marketplace} ansehen`}>
                                   <ShieldCheck className="w-5 h-5 mx-auto" aria-label="Discount active" />
-                                  <span className="text-xs font-bold text-slate-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">-{mData.discountPercentage}%</span>
-                                </div>
+                                  <span className="text-xs font-bold text-slate-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1">-{mData.discountPercentage}% <ExternalLink className="w-3 h-3 text-slate-400" /></span>
+                                </a>
+                              ) : mData ? (
+                                <a href={mData.url} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-blue-600 transition-colors inline-block" title={`Auf ${marketplace} ansehen`}>
+                                  <span className="font-bold">-</span>
+                                  <ExternalLink className="w-3 h-3 inline-block ml-1" />
+                                </a>
                               ) : (
                                 <span className="text-slate-400 font-bold">-</span>
                               )}

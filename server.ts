@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import cron from "node-cron";
 import { exec } from "child_process";
+import { promisify } from "util";
 
 async function startServer() {
   const app = express();
@@ -44,16 +45,21 @@ async function startServer() {
   });
 
   // Optional manual trigger endpoint for crawled data
-  app.post("/api/crawl", (req, res) => {
+  app.post("/api/crawl", async (req, res) => {
     console.log("Manual crawl triggered via API...");
-    exec("npx tsx scrape_otto.ts && npx tsx scrape_praxis.ts", (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error executing scans: ${error.message}`);
-        // Continuing anyway if partial failure
-      }
-      console.log(`Manual scan output:\n${stdout}\n${stderr}`);
-    });
-    res.json({ message: "Crawl started in the background" });
+    const execAsync = promisify(exec);
+    
+    try {
+      console.log("Running Otto scrape...");
+      await execAsync("npx tsx scrape_otto.ts");
+      console.log("Running Praxis scrape...");
+      await execAsync("npx tsx scrape_praxis.ts");
+      console.log("Manual crawl completed successfully.");
+      res.json({ message: "Crawl completed successfully" });
+    } catch (error: any) {
+      console.error(`Error executing scans: ${error.message}`);
+      res.status(500).json({ message: "Crawl failed", error: error.message });
+    }
   });
 
   if (process.env.NODE_ENV !== "production") {

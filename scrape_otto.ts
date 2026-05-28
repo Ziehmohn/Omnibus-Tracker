@@ -44,30 +44,35 @@ async function run() {
   const querySnapshot = await getDocs(q);
 
   let updatedCount = 0;
+  
+  const docs = querySnapshot.docs.slice();
+  const CONCURRENCY = 10;
+  
+  for (let i = 0; i < docs.length; i += CONCURRENCY) {
+    const batchDocs = docs.slice(i, i + CONCURRENCY);
+    await Promise.all(batchDocs.map(async (docSnap) => {
+      const itemData = docSnap.data();
+      const itemId = docSnap.id;
+      const url = itemData.url;
 
-  for (const docSnap of querySnapshot.docs) {
-    const itemData = docSnap.data();
-    const itemId = docSnap.id;
-    const url = itemData.url;
+      if (!url) return;
+      console.log(`Scraping ${url}`);
 
-    if (!url) continue;
-
-    console.log(`Scraping ${url}`);
-    try {
-      let html = "";
-      let res;
       try {
-        res = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'de,en-US;q=0.7,en;q=0.3'
+        let html = "";
+        let res;
+        try {
+          res = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+              'Accept-Language': 'de,en-US;q=0.7,en;q=0.3'
+            }
+          });
+          if (res.ok) {
+            html = await res.text();
           }
-        });
-        if (res.ok) {
-          html = await res.text();
-        }
-      } catch(e) { }
+        } catch(e) { }
 
       const $ = cheerio.load(html);
 
@@ -159,13 +164,11 @@ async function run() {
       await batch.commit();
       updatedCount++;
       console.log(`Updated ${itemId}: CP=${currentPrice}, SP=${strikethroughPrice}, DP=${discountPercentage}`);
-      
-      // Be nice to the server
-      await new Promise(r => setTimeout(r, 1000));
     } catch (e) {
       console.error(`Error scraping ${url}:`, e);
     }
-  }
+  })); // Close Promise.all array and map callback
+  } // Close outer loop
 
   console.log(`Done scraping OTTO. Updated ${updatedCount} items.`);
 }
