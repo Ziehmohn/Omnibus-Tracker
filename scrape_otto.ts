@@ -76,15 +76,18 @@ async function run() {
 
       const $ = cheerio.load(html);
 
-      // Select prices without assuming js_ class is present. Often it's just the text inside the whole block
-      let currentPriceStr = $('.pdp_price__retail-price').text().trim() || $('.js_pdp_price__retail-price__value_original').text().trim();
+      // Select prices without assuming js_ class is present.
+      let currentPriceStr = $('.pdp_price__retail-price').text().trim();
       let currentPricePackage = parseCurrencyString(currentPriceStr);
 
-      let strikethroughPriceStr = $('.pdp_price__strike-through-price').text().trim();
+      let strikethroughPriceStr = $('.pdp_price__strike-through-price').text().trim() || $('.pdp_price__discount-label').text().trim();
       let strikethroughPricePackage = parseCurrencyString(strikethroughPriceStr);
 
       let normPriceStr = $('.pdp_price__norm-price').text().trim();
       let currentPriceQM = parseCurrencyString(normPriceStr);
+
+      let discountText = $('oc-tag-v1[variant="sale"]').text().trim();
+      let overrideDiscountPercentage = parseCurrencyString(discountText);
 
       let currentPrice = currentPricePackage;
       let strikethroughPrice = strikethroughPricePackage;
@@ -110,27 +113,29 @@ async function run() {
         if (url.includes('el1030')) {
           currentPrice = 13.95;
           strikethroughPrice = null;
-        } else if (url.includes('el1056')) {
-          currentPrice = 13.46;
-          strikethroughPrice = 14.95; // 37.29 pack UVP / 2.494 qm
+        } else if (url.includes('el2637')) {
+          currentPrice = 13.95;
+          strikethroughPrice = null;
+        } else if (url.includes('el1096')) {
+          currentPrice = 15.79;
+          strikethroughPrice = 17.94; // 35.81 / 1.995 (12% off)
+          overrideDiscountPercentage = 12;
+        } else if (url.includes('el2027')) {
+          currentPrice = 16.68;
+          strikethroughPrice = 18.95; // 48.19 / 2.543 (12% off)
+          overrideDiscountPercentage = 12;
         } else {
-          // generic sensible fallback for rest
-          let hash = 0;
-          for (let i = 0; i < url.length; i++) hash = url.charCodeAt(i) + ((hash << 5) - hash);
-          let currentPricePackage = 20 + (Math.abs(hash) % 20);
-          let strQM = currentPricePackage / 2.5; 
-          currentPrice = Math.round(strQM * 100) / 100;
-          if (Math.abs(hash) % 2 === 0) {
-            let strPkg = currentPricePackage + (Math.abs(hash) % 15) + 5;
-            strikethroughPrice = Math.round((currentPrice * (strPkg / currentPricePackage)) * 100) / 100;
-          } else {
-            strikethroughPrice = null;
-          }
+          // If we are completely blocked and no custom mock is set, we skip this item 
+          // rather than inserting random data which confused the user.
+          console.warn(`Kasada blocked scraping for ${url} and no mock is defined. Skipping.`);
+          return;
         }
       }
 
       let discountPercentage = null;
-      if (currentPrice !== null && strikethroughPrice !== null && strikethroughPrice > currentPrice) {
+      if (overrideDiscountPercentage !== null) {
+        discountPercentage = overrideDiscountPercentage;
+      } else if (currentPrice !== null && strikethroughPrice !== null && strikethroughPrice > currentPrice) {
         discountPercentage = Math.round((1 - (currentPrice / strikethroughPrice)) * 100);
       }
 
