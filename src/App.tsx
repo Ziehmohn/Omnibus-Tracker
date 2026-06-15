@@ -4,11 +4,11 @@
  */
 
 import React, { useEffect, useState, useMemo } from "react";
-import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, deleteDoc, doc } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
-import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store, Settings2, Columns, Download } from "lucide-react";
+import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store, Settings2, Columns, Download, Trash2, Edit } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell, ReferenceArea, CartesianGrid } from "recharts";
 
 export default function App() {
@@ -149,6 +149,18 @@ export default function App() {
     fazitCompliant: true,
     fazitViolation: true
   });
+
+  const handleDeleteItem = async (id: string) => {
+    if (window.confirm('Möchten Sie dieses Produkt wirklich löschen?')) {
+      try {
+        await deleteDoc(doc(db, "items", id));
+        setItems(prevItems => prevItems.filter(item => item.id !== id));
+      } catch (error) {
+        console.error("Error deleting document: ", error);
+        alert('Fehler beim Löschen des Produkts.');
+      }
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -545,6 +557,65 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                    Vorhandene Produkte
+                  </h3>
+                   <span className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded-full font-medium">{items.length} gesamt</span>
+                </div>
+                
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full divide-y divide-slate-200 text-left">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Artikel / Marken</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Marktplatz</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">Aktionen</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                      {items.map((item, idxx) => (
+                        <tr key={item.id || `fallback-${idxx}`} className="hover:bg-slate-50 group">
+                          <td className="px-4 py-3 text-sm text-slate-900 font-medium max-w-[300px]">
+                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors flex items-center gap-1 truncate" title={item.name || item.url}>
+                              <span className="truncate">{item.name || item.url}</span> <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-blue-500 flex-shrink-0" />
+                            </a>
+                            {item.productset && <div className="text-xs text-slate-500 font-normal mt-0.5">Set: {item.productset}</div>}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 capitalize">
+                            {item.marketplace}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap space-x-2 text-right">
+                            <button 
+                              className="text-slate-400 hover:text-blue-600 transition-colors p-1" 
+                              title="Bearbeiten (Demomodus)"
+                              onClick={() => alert("Bearbeiten ist in der Vorschau noch nicht implementiert.")}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button 
+                              className="text-slate-400 hover:text-red-600 transition-colors p-1" 
+                              title="Löschen"
+                              onClick={() => handleDeleteItem(item.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {items.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500 border-t border-slate-200">
+                            Keine Produkte vorhanden.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
