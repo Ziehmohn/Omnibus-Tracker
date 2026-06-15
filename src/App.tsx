@@ -9,7 +9,7 @@ import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
 import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell } from "recharts";
+import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell, ReferenceArea, CartesianGrid } from "recharts";
 
 export default function App() {
   const [items, setItems] = useState<ItemWithLatestPrice[]>([]);
@@ -127,24 +127,67 @@ export default function App() {
         // Fetch records
         const recordsQuery = query(
           collection(db, `items/${docSnap.id}/priceRecords`),
-          orderBy("date", "desc")
+          orderBy("date", "asc")
         );
         const recordsSnapshot = await getDocs(recordsQuery);
         
-        const history = recordsSnapshot.docs.map(r => ({
+        const historyAsc = recordsSnapshot.docs.map(r => ({
           ...r.data(),
           id: r.id,
           date: r.data().date?.toMillis ? r.data().date.toMillis() : (r.data().date?.seconds * 1000 || r.data().date),
           discountStartDate: r.data().discountStartDate?.toMillis ? r.data().discountStartDate.toMillis() : (r.data().discountStartDate?.seconds * 1000 || r.data().discountStartDate),
         })) as PriceRecord[];
 
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const firstDateMs = historyAsc.length > 0 ? historyAsc[0].date : 0;
+
+        for (let i = 0; i < historyAsc.length; i++) {
+           const record = historyAsc[i];
+           let isViolation = false;
+           let lowestInPrior30: number | undefined = undefined;
+           
+           const has30DaysHistory = (record.date - firstDateMs) >= thirtyDaysMs;
+
+           const thirtyDaysAgo = record.date - thirtyDaysMs;
+           const thirtyDayPrices = [];
+           for (let j = 0; j < i; j++) {
+               if (historyAsc[j].date >= thirtyDaysAgo) {
+                   if (historyAsc[j].currentPrice !== null && historyAsc[j].currentPrice !== undefined) {
+                       thirtyDayPrices.push(historyAsc[j].currentPrice);
+                   }
+               }
+           }
+           if (thirtyDayPrices.length > 0) {
+               lowestInPrior30 = Math.min(...thirtyDayPrices);
+           }
+           
+           if (record.strikethroughPrice && record.strikethroughPrice > record.currentPrice) {
+               if (has30DaysHistory && lowestInPrior30 !== undefined && record.strikethroughPrice > lowestInPrior30) {
+                   isViolation = true;
+               }
+           }
+           record.isViolation = isViolation;
+           (record as any)._lowestPrior30 = lowestInPrior30;
+           (record as any)._has30DaysHistory = has30DaysHistory;
+        }
+
+        const history = [...historyAsc].reverse();
         const latestRecord = history.length > 0 ? history[0] : null;
+
+        let lowest30DayPrice: number | undefined;
+        let has30DaysHistory = false;
+        if (latestRecord) {
+           lowest30DayPrice = (latestRecord as any)._lowestPrior30;
+           has30DaysHistory = (latestRecord as any)._has30DaysHistory;
+        }
 
         itemsList.push({
           ...itemData,
           history,
           latestRecord,
-        });
+          lowest30DayPrice,
+          has30DaysHistory
+        } as any);
       }
 
       setItems(itemsList);
@@ -712,15 +755,47 @@ export default function App() {
                           })()}
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap text-center">
-                          {latest?.isViolation ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              Violation
+                          <div className="relative inline-block group/fazit">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-help transition-colors ${latest?.isViolation ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                              {latest?.isViolation ? 'Violation' : 'Compliant'}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                              Compliant
-                            </span>
-                          )}
+                            <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/fazit:block w-64 bg-slate-800 text-white text-xs rounded-lg p-3 shadow-xl whitespace-normal text-left">
+                              <p className="font-medium mb-1 border-b border-slate-700 pb-1">
+                                {latest?.isViolation ? '⚠️ Omnibus Violation' : '✅ Omnibus Compliant'}
+                              </p>
+                              {latest?.strikethroughPrice && latest?.strikethroughPrice > latest.currentPrice ? (
+                                <div className="space-y-1 mt-2">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Streichpreis:</span>
+                                    <span className={latest?.isViolation ? 'text-red-300 font-medium' : ''}>€{latest?.strikethroughPrice?.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-300">Tiefstpreis (30T):</span>
+                                    <span className="font-medium">
+                                      {item.lowest30DayPrice !== undefined ? `€${item.lowest30DayPrice.toFixed(2)}` : 'Nicht genug Daten'}
+                                    </span>
+                                  </div>
+                                  
+                                  {item.has30DaysHistory ? (
+                                    <p className="text-[10px] text-slate-400 mt-2 leading-tight">
+                                      {latest?.isViolation 
+                                        ? "Der angegebene Streichpreis ist höher als der tiefste Preis der letzten 30 Tage. Nach der Omnibus-Richtlinie muss der Streichpreis dem niedrigsten Preis der letzten 30 Tage entsprechen." 
+                                        : "Der Streichpreis ist compliant, da er nicht höher ist als der tiefste Preis der letzten 30 Tage vor der Preisreduktion."}
+                                    </p>
+                                  ) : (
+                                    <p className="text-[10px] text-amber-300 mt-2 leading-tight">
+                                      Hinweis: Die Preishistorie umfasst weniger als 30 Tage. Ein Verstoß kann deshalb noch nicht abschließend ermittelt werden und wird vorerst als compliant markiert.
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-slate-300 mt-1">Kein Streichpreis hinterlegt oder keine Preisreduktion vorhanden.</p>
+                              )}
+                              
+                              {/* Small triangle arrow at the bottom */}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                            </div>
+                          </div>
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap text-right text-sm font-medium relative">
                            <div className="relative inline-block">
@@ -730,23 +805,82 @@ export default function App() {
                               {openGraphId === item.id && (
                                 <>
                                   <div className="fixed inset-0 z-10" onClick={() => setOpenGraphId(null)}></div>
-                                  <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-72 bg-white border border-slate-200 rounded-lg shadow-xl p-4 z-20">
-                                    <button onClick={() => setOpenGraphId(null)} className="absolute top-2 right-2 text-slate-400 hover:text-slate-600 rounded">
+                                  <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-[600px] bg-white border border-slate-200 rounded-xl shadow-2xl p-5 z-20">
+                                    <button onClick={() => setOpenGraphId(null)} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 rounded bg-slate-50 hover:bg-slate-100 p-1">
                                       <X className="w-4 h-4" />
                                     </button>
-                                    <h4 className="text-xs font-semibold text-slate-500 mb-2 pr-6 text-left">Price History</h4>
-                                    <div className="h-40 w-full">
-                                        <LineChart width={250} height={150} data={[...item.history].reverse().map(r => ({
-                                          date: new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
-                                          price: r.currentPrice,
-                                          regular: r.strikethroughPrice
-                                        }))} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                                          <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                                          <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} />
-                                          <RechartsTooltip contentStyle={{fontSize: '12px'}} formatter={(val: number, name: string) => [`€${val.toFixed(2)}`, name === 'price' ? 'Preis' : 'Regulärer Preis']} />
-                                          <Line type="monotone" dataKey="regular" stroke="#94a3b8" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                                          <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                                        </LineChart>
+                                    
+                                    <div className="flex items-center gap-2 mb-4 pr-8">
+                                      <h4 className="text-sm font-semibold text-slate-800 text-left m-0">Preishistorie</h4>
+                                      <div className="relative group/info">
+                                        <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center cursor-help">
+                                          <span className="text-[10px] font-bold">i</span>
+                                        </div>
+                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/info:block w-48 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg text-left z-30">
+                                          Dieser Graph zeigt den Verkaufspreis (blau) sowie den Streichpreis (grau) im Zeitverlauf. Die dezent rot hinterlegten Zeiträume markieren einen Verstoß gegen die Omnibus-Richtlinie.
+                                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="h-[350px] w-full mt-2">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        {(() => {
+                                           const chartData = [...item.history].reverse().map(r => ({
+                                             date: new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
+                                             price: r.currentPrice,
+                                             regular: r.strikethroughPrice,
+                                             isViolation: r.isViolation
+                                           }));
+
+                                           let maxPrice = 0;
+                                           for (const d of chartData) {
+                                             if (d.price && d.price > maxPrice) maxPrice = d.price;
+                                             if (d.regular && d.regular > maxPrice) maxPrice = d.regular;
+                                           }
+                                           maxPrice = Math.max(10, Math.ceil(maxPrice / 2) * 2 + 2); 
+                                           
+                                           const yTicks: number[] = [];
+                                           for (let i = 0; i <= maxPrice; i += 2) {
+                                             yTicks.push(i);
+                                           }
+
+                                           return (
+                                            <LineChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                                              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                              <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={{ strokeWidth: 2, stroke: '#64748b' }} tickLine={false} />
+                                              <YAxis domain={[0, maxPrice]} ticks={yTicks} tick={{ fontSize: 10 }} axisLine={{ strokeWidth: 2, stroke: '#64748b' }} tickLine={false} />
+                                              
+                                              {chartData.map((d, index) => {
+                                                if (d.isViolation) {
+                                                  const nextPoint = chartData[index + 1];
+                                                  if (nextPoint) {
+                                                    // @ts-ignore
+                                                    return <ReferenceArea key={index} x1={d.date} x2={nextPoint.date} fill="#fee2e2" fillOpacity={0.6} strokeOpacity={0} />;
+                                                  } else {
+                                                    // @ts-ignore
+                                                    return <ReferenceArea key={index} x1={d.date} x2={d.date} fill="#fee2e2" fillOpacity={0.6} strokeOpacity={0} />;
+                                                  }
+                                                }
+                                                return null;
+                                              })}
+
+                                              <RechartsTooltip 
+                                                contentStyle={{fontSize: '12px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)'}} 
+                                                formatter={(val: number, name: string) => [`€${val?.toFixed(2) || '-'}`, name === 'price' ? 'Verkaufspreis' : 'Streichpreis']} 
+                                                labelStyle={{fontWeight: 'bold', marginBottom: '4px', color: '#334155'}}
+                                                itemStyle={{paddingBottom: '2px'}}
+                                              />
+                                              <Line type="stepAfter" dataKey="regular" stroke="#94a3b8" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} connectNulls />
+                                              <Line type="stepAfter" dataKey="price" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                                            </LineChart>
+                                           );
+                                        })()}
+                                      </ResponsiveContainer>
+                                    </div>
+                                    <div className="flex justify-start gap-4 items-center text-[10px] text-slate-500 mt-3 px-2">
+                                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500"></span>Verkaufspreis</div>
+                                      <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-400"></span>Streichpreis</div>
                                     </div>
                                   </div>
                                 </>

@@ -30,7 +30,7 @@ export async function runOttoScraping() {
       skip_empty_lines: true,
       relax_quotes: true,
     });
-    for (const record of records) {
+    for (const record of records as any[]) {
       if (record.marketplace === 'OTTO') {
         const erfasst = record.erfasst_am || new Date().toISOString();
         csvDatesByUrl.set(record.url, erfasst);
@@ -48,7 +48,7 @@ export async function runOttoScraping() {
   const docs = querySnapshot.docs.slice();
   
   for (const docSnap of docs) {
-    const itemData = docSnap.data();
+    const itemData = docSnap.data() as any;
     const itemId = docSnap.id;
     const url = itemData.url;
 

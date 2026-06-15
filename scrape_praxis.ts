@@ -130,6 +130,33 @@ async function runPraxis() {
           discountPercentage = Math.round((1 - (latestPrice / latestStrike)) * 100);
       }
 
+      // Calculate Omnibus Violation
+      let isViolation = false;
+      if (latestStrike && latestStrike > latestPrice) {
+        // Fetch last 30 days of price records
+        const thirtyDaysAgo = new Date(date);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoTs = Timestamp.fromMillis(thirtyDaysAgo.getTime());
+        
+        const historyRef = collection(db, `items/${itemId}/priceRecords`);
+        const historyQuery = query(historyRef, where("date", ">=", thirtyDaysAgoTs));
+        const historySnap = await getDocs(historyQuery);
+        
+        let lowestRecentPrice = latestStrike; // assume compliant until proven otherwise
+        for (const historyDoc of historySnap.docs) {
+           const historyData = historyDoc.data();
+           const pastPrice = historyData.currentPrice;
+           if (pastPrice !== null && pastPrice < lowestRecentPrice) {
+               lowestRecentPrice = pastPrice;
+           }
+        }
+        
+        // If the strikethrough price (reference price) is higher than the lowest price in the last 30 days
+        if (latestStrike > lowestRecentPrice) {
+            isViolation = true;
+        }
+      }
+
       const batch = writeBatch(db);
       const hRef = doc(db, `items/${itemId}/priceRecords`, dateString);
       batch.set(hRef, {
@@ -139,7 +166,7 @@ async function runPraxis() {
         discountStartDate: null,
         date: tsDate,
         itemId: itemId,
-        isViolation: false 
+        isViolation: isViolation 
       }, { merge: true });
       
       batch.update(docSnap.ref, {

@@ -23,4 +23,6 @@ export interface PriceRecord {
 export interface ItemWithLatestPrice extends Item {
   latestRecord?: PriceRecord | null;
   history: PriceRecord[];
+  lowest30DayPrice?: number;
+  has30DaysHistory?: boolean;
 }
