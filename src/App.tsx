@@ -738,11 +738,13 @@ export default function App() {
                                     <div className="h-40 w-full">
                                         <LineChart width={250} height={150} data={[...item.history].reverse().map(r => ({
                                           date: new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
-                                          price: r.currentPrice
+                                          price: r.currentPrice,
+                                          regular: r.strikethroughPrice
                                         }))} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                                           <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                           <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} />
-                                          <RechartsTooltip contentStyle={{fontSize: '12px'}} formatter={(val: number) => [`€${val.toFixed(2)}`, 'Preis']} />
+                                          <RechartsTooltip contentStyle={{fontSize: '12px'}} formatter={(val: number, name: string) => [`€${val.toFixed(2)}`, name === 'price' ? 'Preis' : 'Regulärer Preis']} />
+                                          <Line type="monotone" dataKey="regular" stroke="#94a3b8" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                                           <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                                         </LineChart>
                                     </div>

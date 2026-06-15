@@ -404,6 +404,8 @@ export const seedDatabase = async () => {
       url: item.url,
       marketplace: "Praxis",
       productset: "Yarenza",
+      latestPrice: item.price,
+      strikethroughPrice: item.strikethroughPrice || null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });

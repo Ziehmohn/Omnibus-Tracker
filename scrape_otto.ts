@@ -24,7 +24,7 @@ export async function runOttoScraping() {
 
   let csvDatesByUrl = new Map<string, string>();
   try {
-    const fileContent = fs.readFileSync('./products.csv', 'utf-8');
+    const fileContent = fs.readFileSync('./otto_products.csv', 'utf-8');
     const records = parse(fileContent, {
       columns: true,
       skip_empty_lines: true,
