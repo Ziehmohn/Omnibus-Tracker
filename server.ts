@@ -45,21 +45,27 @@ async function startServer() {
   });
 
   // Optional manual trigger endpoint for crawled data
-  app.post("/api/crawl", async (req, res) => {
+  app.post("/api/crawl", (req, res) => {
     console.log("Manual crawl triggered via API...");
-    const execAsync = promisify(exec);
     
-    try {
-      console.log("Running Otto scrape...");
-      await execAsync("npx tsx scrape_otto.ts");
-      console.log("Running Praxis scrape...");
-      await execAsync("npx tsx scrape_praxis.ts");
-      console.log("Manual crawl completed successfully.");
-      res.json({ message: "Crawl completed successfully" });
-    } catch (error: any) {
-      console.error(`Error executing scans: ${error.message}`);
-      res.status(500).json({ message: "Crawl failed", error: error.message });
-    }
+    // Run scrapes in background to prevent HTTP timeouts
+    exec("npx tsx scrape_otto.ts", (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error executing Otto scan: ${error.message}`);
+        return;
+      }
+      console.log(`Otto scan completed:\n${stdout}`);
+      
+      exec("npx tsx scrape_praxis.ts", (error2, stdout2, stderr2) => {
+         if (error2) {
+            console.error(`Error executing Praxis scan: ${error2.message}`);
+            return;
+         }
+         console.log(`Praxis scan completed:\n${stdout2}`);
+      });
+    });
+
+    res.json({ message: "Crawl started in the background" });
   });
 
   if (process.env.NODE_ENV !== "production") {

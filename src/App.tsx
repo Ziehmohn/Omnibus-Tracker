@@ -21,11 +21,13 @@ export default function App() {
     setIsCrawling(true);
     try {
       await fetch('/api/crawl', { method: 'POST' });
-      await loadData();
     } catch (e) {
       console.error(e);
     } finally {
-      setIsCrawling(false);
+      setTimeout(() => {
+        setIsCrawling(false);
+        alert('Der Crawl wurde im Hintergrund gestartet. Dies kann einige Minuten dauern, da viele Produkte überprüft werden. Bitte laden Sie die Seite später neu.');
+      }, 500);
     }
   };
   
