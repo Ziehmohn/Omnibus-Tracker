@@ -8,7 +8,7 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
-import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store } from "lucide-react";
+import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store, Settings2, Columns } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell, ReferenceArea, CartesianGrid } from "recharts";
 
 export default function App() {
@@ -31,8 +31,43 @@ export default function App() {
     }
   };
   
-  const [activeTab, setActiveTab] = useState<"omnibus" | "discount-overview" | "competitors">("omnibus");
+  const [activeTab, setActiveTab] = useState<"omnibus" | "discount-overview" | "competitors" | "upload">("omnibus");
   const [openGraphId, setOpenGraphId] = useState<string | null>(null);
+
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>({
+    erfasst: true,
+    name: true,
+    marketplace: true,
+    regularPrice: true,
+    currentPrice: true,
+    discount: true,
+    validSince: true,
+    fazit: true,
+    graph: true
+  });
+  const [showColMenu, setShowColMenu] = useState(false);
+
+  const startResize = (colName: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const th = (e.target as HTMLElement).closest('th');
+    const startWidth = th?.offsetWidth || 100;
+    
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const newWidth = Math.max(50, startWidth + (moveEvent.clientX - startX));
+      setColWidths(prev => ({ ...prev, [colName]: newWidth }));
+    };
+    
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
 
   const competitorDetections = [
     { id: '1', brand: 'Kronotex', marketplace: 'Hornbach', activeListings: 50, lastSeen: 'Heute' },
@@ -347,58 +382,81 @@ export default function App() {
   const violationsCount = processedItems.filter(i => i.latestRecord?.isViolation).length;
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col hidden md:flex shrink-0">
-        <div className="p-4 bg-slate-950 flex items-center gap-3">
-          <img src="https://cdn.egger.com/img/cms/ff58d5b2-cb11-41dc-ba72-5cec737f1c8a/def606a7-b410-40af-bc8a-34a5e12bf3ca/ORIGINAL/gen_egger_logo_de.svg" alt="EGGER" className="h-5 brightness-0 invert" />
-          <span className="font-bold text-white tracking-tight">E-Com Dashboard</span>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto py-4">
-          <div className="px-4 mb-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Discount Tracking</p>
-          </div>
-          <nav className="space-y-1 px-2">
-            <button 
-              onClick={() => setActiveTab('omnibus')}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'omnibus' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
-            >
-              <TrendingDown className="w-4 h-4" />
-              Omnibus tracking
-            </button>
-            <button 
-              onClick={() => setActiveTab('discount-overview')}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'discount-overview' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
-            >
-              <Percent className="w-4 h-4" />
-              Discount overview
-            </button>
-          </nav>
+    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden relative">
+      {/* Full width header background */}
+      <div className="absolute top-0 left-0 right-0 h-[73px] bg-white border-b border-slate-200 z-0" />
 
-          <div className="px-4 mt-8 mb-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Market Analysis</p>
-          </div>
-          <nav className="space-y-1 px-2">
-            <button 
-              onClick={() => setActiveTab('competitors')}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'competitors' ? 'bg-blue-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}
-            >
-              <Users className="w-4 h-4" />
-              Competitors
-            </button>
-          </nav>
+      {/* Sidebar Wrapper */}
+      <div className="hidden md:flex p-6 pr-2 z-20 relative">
+        <div className="relative h-full flex w-64 shrink-0">
+          {/* Light gray shadow */}
+          <div className="absolute inset-0 bg-slate-200 translate-x-3 translate-y-3 rounded-2xl"></div>
+          {/* Egger Red accent */}
+          <div className="absolute inset-0 bg-[#DC2B3C] translate-x-1.5 translate-y-1.5 rounded-2xl"></div>
+          
+          <aside className="relative w-full bg-slate-900 text-slate-300 flex flex-col rounded-2xl overflow-hidden z-10 shadow-2xl border border-slate-800">
+            <div className="p-8 bg-slate-950 flex flex-col items-center justify-center gap-4 overflow-hidden text-center">
+              <img src="https://cdn.egger.com/img/cms/ff58d5b2-cb11-41dc-ba72-5cec737f1c8a/def606a7-b410-40af-bc8a-34a5e12bf3ca/ORIGINAL/gen_egger_logo_de.svg" alt="EGGER" className="h-8 md:h-10 brightness-0 invert shrink-0 w-auto" />
+              <span className="font-bold text-white tracking-widest uppercase whitespace-nowrap text-[8px] sm:text-[10px] md:text-xs w-full truncate border-t border-slate-800 pt-3">E-Com Dashboard</span>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto py-4">
+              <div className="px-5 mb-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Discount Tracking</p>
+              </div>
+              <nav className="space-y-1 px-3">
+                <button 
+                  onClick={() => setActiveTab('omnibus')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'omnibus' ? 'bg-[#DC2B3C] text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+                >
+                  <TrendingDown className="w-4 h-4" />
+                  Omnibus tracking
+                </button>
+                <button 
+                  onClick={() => setActiveTab('discount-overview')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'discount-overview' ? 'bg-[#DC2B3C] text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+                >
+                  <Percent className="w-4 h-4" />
+                  Discount overview
+                </button>
+              </nav>
+
+              <div className="px-5 mt-8 mb-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Market Analysis</p>
+              </div>
+              <nav className="space-y-1 px-3">
+                <button 
+                  onClick={() => setActiveTab('competitors')}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'competitors' ? 'bg-[#DC2B3C] text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+                >
+                  <Users className="w-4 h-4" />
+                  Competitors
+                </button>
+              </nav>
+            </div>
+            
+            <div className="p-4 border-t border-slate-800">
+              <button 
+                onClick={() => setActiveTab('upload')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'upload' ? 'bg-[#DC2B3C] text-white' : 'hover:bg-slate-800 hover:text-white'}`}
+              >
+                <Settings2 className="w-4 h-4" />
+                Products Upload
+              </button>
+            </div>
+          </aside>
         </div>
-      </aside>
+      </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-slate-200 shrink-0">
-          <div className="px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+        <header className="shrink-0 h-[73px]">
+          <div className="px-4 sm:px-6 lg:px-8 h-full flex justify-between items-center">
             <h2 className="text-xl font-semibold text-slate-800 tracking-tight">
               {activeTab === 'omnibus' && 'Omnibus tracking'}
               {activeTab === 'discount-overview' && 'Discount overview'}
               {activeTab === 'competitors' && 'Competitors'}
+              {activeTab === 'upload' && 'Products Upload'}
             </h2>
             
             <div className="flex items-center gap-3">
@@ -423,6 +481,54 @@ export default function App() {
             <div className="flex flex-col items-center justify-center p-20 text-slate-400">
               <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-blue-600 animate-spin mb-4" />
               <p>Loading overview data...</p>
+            </div>
+          ) : activeTab === 'upload' ? (
+            <div className="space-y-6 max-w-4xl mx-auto">
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <Box className="w-5 h-5 text-blue-500" />
+                  Produkte hochladen (CSV oder Manuell)
+                </h3>
+                <p className="text-sm text-slate-500 mb-6">Pflichtfelder sind <strong>Link</strong> und <strong>Marktplatz</strong>. Die restlichen Daten werden bei der automatischen Erfassung durch den Crawler nachträglich ergänzt.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* CSV Upload Section */}
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors cursor-pointer bg-white">
+                    <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                      <CopyPlus className="w-6 h-6" />
+                    </div>
+                    <p className="font-medium text-slate-700 mb-1">CSV-Datei hochladen</p>
+                    <p className="text-sm text-slate-500 mb-4">Ziehen Sie Ihre Datei hierher oder klicken Sie hier</p>
+                    <button className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md text-sm font-medium hover:bg-slate-50">
+                      Datei auswählen
+                    </button>
+                    <p className="text-xs text-slate-400 mt-4">Kopfzeilen: Link, Marktplatz</p>
+                  </div>
+
+                  {/* Manual Entry Section */}
+                  <div className="bg-slate-50 p-6 rounded-lg border border-slate-200">
+                    <h4 className="font-medium text-slate-700 mb-4">Manuelle Eingabe</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Marktplatz *</label>
+                        <select className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                          <option>Hornbach</option>
+                          <option>OBI</option>
+                          <option>Bauhaus</option>
+                          <option>Toom</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Produkt-Link *</label>
+                        <input type="text" placeholder="https://..." className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                      </div>
+                      <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">
+                        Produkt hinzufügen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : activeTab === 'competitors' ? (
             <div className="space-y-6">
@@ -569,6 +675,48 @@ export default function App() {
                 </h2>
                 <div className="flex gap-4">
                   {activeTab === 'omnibus' && (
+                    <div className="relative">
+                      <button 
+                        onClick={() => setShowColMenu(!showColMenu)}
+                        className="flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium hover:bg-slate-50 text-slate-700"
+                      >
+                        <Columns className="w-4 h-4" />
+                        Spalten
+                      </button>
+                      {showColMenu && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setShowColMenu(false)} />
+                          <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50">
+                            {Object.keys(visibleCols).map(key => {
+                               let label = key;
+                               if(key === 'erfasst') label = 'Hinzugefügt am';
+                               if(key === 'name') label = 'Artikelname';
+                               if(key === 'marketplace') label = 'Marktplatz';
+                               if(key === 'regularPrice') label = 'Reg. Preis';
+                               if(key === 'currentPrice') label = 'Verkaufspreis';
+                               if(key === 'discount') label = 'Discount';
+                               if(key === 'validSince') label = 'Gültig seit';
+                               if(key === 'fazit') label = 'Fazit';
+                               if(key === 'graph') label = 'Graph';
+                               
+                               return (
+                                <label key={key} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer select-none">
+                                  <input 
+                                    type="checkbox" 
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    checked={visibleCols[key]}
+                                    onChange={(e) => setVisibleCols(p => ({ ...p, [key]: e.target.checked }))}
+                                  />
+                                  {label}
+                                </label>
+                               )
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {activeTab === 'omnibus' && (
                     <select 
                       className="border border-slate-300 rounded-md px-3 py-1.5 text-sm bg-white font-medium capitalize outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                       value={filterMarketplace}
@@ -594,74 +742,94 @@ export default function App() {
               
               {activeTab === 'omnibus' ? (
                 <div className="bg-white border rounded-lg overflow-x-auto border-slate-200 shadow-sm w-full">
-                  <table className="w-full divide-y divide-slate-200">
+                  <table className="w-full divide-y divide-slate-200 table-fixed">
                     <thead className="bg-slate-50">
                   <tr>
-                    <th scope="col" className="px-2 py-2 text-left w-24 align-top">
+                    {visibleCols.erfasst && (
+                    <th scope="col" className="px-2 py-2 text-left align-top relative group/th2" style={{ width: colWidths['erfasst'] || 120 }}>
                       <div className="flex flex-col h-16 justify-between items-start">
-                        <button onClick={() => handleSort('erfasst')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Hinzugefügt am {getSortIcon('erfasst')}</button>
+                        <button onClick={() => handleSort('erfasst')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Hinzugefügt am {getSortIcon('erfasst')}</button>
                       </div>
+                      <div onMouseDown={(e) => startResize('erfasst', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
-                    <th scope="col" className="px-2 py-2 text-left align-top max-w-[200px]">
-                      <div className="flex flex-col h-16 justify-between items-start w-full">
-                        <button onClick={() => handleSort('name')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Artikelname {getSortIcon('name')}</button>
-                        <input type="text" placeholder="Suche..." className="w-full text-xs border border-slate-300 rounded px-2 py-1 shadow-sm font-normal min-w-[120px]" value={columnFilters.name} onChange={e => updateColumnFilter('name', e.target.value)} />
+                    )}
+                    {visibleCols.name && (
+                    <th scope="col" className="px-2 py-2 text-left align-top relative group/th2" style={{ width: colWidths['name'] || 200 }}>
+                      <div className="flex flex-col h-16 justify-between items-start w-full pr-2">
+                        <button onClick={() => handleSort('name')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Artikelname {getSortIcon('name')}</button>
+                        <input type="text" placeholder="Suche..." className="w-full text-xs border border-slate-300 rounded px-2 py-1 shadow-sm font-normal" value={columnFilters.name} onChange={e => updateColumnFilter('name', e.target.value)} />
                       </div>
+                      <div onMouseDown={(e) => startResize('name', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
-                    <th scope="col" className="px-2 py-2 text-left align-top w-28">
+                    )}
+                    {visibleCols.marketplace && (
+                    <th scope="col" className="px-2 py-2 text-left align-top relative group/th2" style={{ width: colWidths['marketplace'] || 100 }}>
                       <div className="flex flex-col h-16 justify-between items-start">
-                        <button onClick={() => handleSort('marketplace')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Marktplatz {getSortIcon('marketplace')}</button>
+                        <button onClick={() => handleSort('marketplace')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Marktplatz {getSortIcon('marketplace')}</button>
                       </div>
+                      <div onMouseDown={(e) => startResize('marketplace', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
-                    <th scope="col" className="px-2 py-2 text-right group/th align-top">
-                      <div className="flex flex-col h-16 justify-between items-end">
-                        <button onClick={() => handleSort('regularPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Reg. Preis {getSortIcon('regularPrice')}</button>
-                        <div className="flex justify-end gap-1">
-                          <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.regularPriceOp} onChange={e => updateColumnFilter('regularPriceOp', e.target.value)}>
+                    )}
+                    {visibleCols.regularPrice && (
+                    <th scope="col" className="px-2 py-2 text-right align-top relative group/th2" style={{ width: colWidths['regularPrice'] || 140 }}>
+                      <div className="flex flex-col h-16 justify-between items-end pr-2">
+                        <button onClick={() => handleSort('regularPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Reg. Preis {getSortIcon('regularPrice')}</button>
+                        <div className="flex justify-end gap-1 w-full">
+                          <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white w-8 px-0" value={columnFilters.regularPriceOp} onChange={e => updateColumnFilter('regularPriceOp', e.target.value)}>
                             <option value="=">=</option>
                             <option value=">">&gt;</option>
                             <option value="<">&lt;</option>
                           </select>
-                          <input type="text" placeholder="Wert" className="w-12 text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.regularPriceVal} onChange={e => updateColumnFilter('regularPriceVal', e.target.value)} />
+                          <input type="text" placeholder="Wert" className="w-[calc(100%-2rem)] text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.regularPriceVal} onChange={e => updateColumnFilter('regularPriceVal', e.target.value)} />
                         </div>
                       </div>
+                      <div onMouseDown={(e) => startResize('regularPrice', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
-                    {displayedMarketplaces.map(marketplace => (
-                      <th key={`th-${marketplace}`} scope="col" className="px-2 py-2 text-right group/th align-top">
-                        <div className="flex flex-col h-16 justify-between items-end">
-                          <button onClick={() => handleSort('currentPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Preis ({marketplace}) {getSortIcon('currentPrice')}</button>
-                          <div className="flex justify-end gap-1">
-                            <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.currentPriceOp} onChange={e => updateColumnFilter('currentPriceOp', e.target.value)}>
+                    )}
+                    {visibleCols.currentPrice && displayedMarketplaces.map(marketplace => (
+                      <th key={`th-${marketplace}`} scope="col" className="px-2 py-2 text-right relative group/th2 align-top" style={{ width: colWidths[`currentPrice-${marketplace}`] || 140 }}>
+                        <div className="flex flex-col h-16 justify-between items-end pr-2">
+                          <button onClick={() => handleSort('currentPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Preis ({marketplace}) {getSortIcon('currentPrice')}</button>
+                          <div className="flex justify-end gap-1 w-full">
+                            <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white w-8 px-0" value={columnFilters.currentPriceOp} onChange={e => updateColumnFilter('currentPriceOp', e.target.value)}>
                               <option value="=">=</option>
                               <option value=">">&gt;</option>
                               <option value="<">&lt;</option>
                             </select>
-                            <input type="text" placeholder="Wert" className="w-12 text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.currentPriceVal} onChange={e => updateColumnFilter('currentPriceVal', e.target.value)} />
+                            <input type="text" placeholder="Wert" className="w-[calc(100%-2rem)] text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.currentPriceVal} onChange={e => updateColumnFilter('currentPriceVal', e.target.value)} />
                           </div>
                         </div>
+                        <div onMouseDown={(e) => startResize(`currentPrice-${marketplace}`, e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                       </th>
                     ))}
-                    <th scope="col" className="px-2 py-2 text-right group/th align-top">
-                      <div className="flex flex-col h-16 justify-between items-end">
-                        <button onClick={() => handleSort('discount')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Discount {getSortIcon('discount')}</button>
-                        <div className="flex justify-end gap-1">
-                          <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white" value={columnFilters.discountOp} onChange={e => updateColumnFilter('discountOp', e.target.value)}>
+                    {visibleCols.discount && (
+                    <th scope="col" className="px-2 py-2 text-right relative group/th2 align-top" style={{ width: colWidths['discount'] || 120 }}>
+                      <div className="flex flex-col h-16 justify-between items-end pr-2">
+                        <button onClick={() => handleSort('discount')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Discount {getSortIcon('discount')}</button>
+                        <div className="flex justify-end gap-1 w-full">
+                          <select className="text-xs border border-slate-300 rounded shadow-sm font-normal bg-white w-8 px-0" value={columnFilters.discountOp} onChange={e => updateColumnFilter('discountOp', e.target.value)}>
                             <option value="=">=</option>
                             <option value=">">&gt;</option>
                             <option value="<">&lt;</option>
                           </select>
-                          <input type="text" placeholder="%" className="w-10 text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.discountVal} onChange={e => updateColumnFilter('discountVal', e.target.value)} />
+                          <input type="text" placeholder="%" className="w-[calc(100%-2rem)] text-xs border border-slate-300 rounded px-1 py-1 shadow-sm font-normal text-right" value={columnFilters.discountVal} onChange={e => updateColumnFilter('discountVal', e.target.value)} />
                         </div>
                       </div>
+                      <div onMouseDown={(e) => startResize('discount', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
-                    <th scope="col" className="px-2 py-2 text-right align-top">
-                      <div className="flex flex-col h-16 justify-between items-end">
+                    )}
+                    {visibleCols.validSince && (
+                    <th scope="col" className="px-2 py-2 text-right relative group/th2 align-top" style={{ width: colWidths['validSince'] || 120 }}>
+                      <div className="flex flex-col h-16 justify-between items-end pr-2">
                         <button onClick={() => handleSort('validSince')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Gültig seit {getSortIcon('validSince')}</button>
                       </div>
+                      <div onMouseDown={(e) => startResize('validSince', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
-                    <th scope="col" className="px-2 py-2 text-center w-28 align-top">
-                      <div className="flex flex-col h-16 justify-between items-center">
-                        <button onClick={() => handleSort('fazit')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none">Fazit {getSortIcon('fazit')}</button>
+                    )}
+                    {visibleCols.fazit && (
+                    <th scope="col" className="px-2 py-2 text-center relative group/th2 align-top" style={{ width: colWidths['fazit'] || 120 }}>
+                      <div className="flex flex-col h-16 justify-between items-center pr-2">
+                        <button onClick={() => handleSort('fazit')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Fazit {getSortIcon('fazit')}</button>
                         <div className="flex flex-col items-start text-[10px] leading-tight font-normal text-slate-600 gap-0.5 mx-auto w-max bg-white p-1 rounded border border-slate-200">
                           <label className="flex items-center gap-1 cursor-pointer">
                             <input type="checkbox" checked={columnFilters.fazitCompliant as any} onChange={e => updateColumnFilter('fazitCompliant', e.target.checked as any)} className="rounded text-blue-600 border-slate-300 focus:ring-blue-500 w-3 h-3" />
@@ -673,12 +841,17 @@ export default function App() {
                           </label>
                         </div>
                       </div>
+                      <div onMouseDown={(e) => startResize('fazit', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
-                    <th scope="col" className="px-2 py-2 text-right text-xs font-medium text-slate-500 uppercase tracking-wider w-16 align-top">
-                      <div className="flex flex-col h-16 justify-between items-end">
+                    )}
+                    {visibleCols.graph && (
+                    <th scope="col" className="px-2 py-2 text-right text-xs font-medium text-slate-500 uppercase tracking-wider align-top relative group/th2" style={{ width: colWidths['graph'] || 64 }}>
+                      <div className="flex flex-col h-16 justify-between items-end pr-2">
                         <span>Graph</span>
                       </div>
+                      <div onMouseDown={(e) => startResize('graph', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                     </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
@@ -692,9 +865,12 @@ export default function App() {
                     const latest = item.latestRecord;
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 group">
+                        {visibleCols.erfasst && (
                         <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500">
                            {item.history.length > 0 ? new Date(item.history[item.history.length - 1].date || 1715126400000).toLocaleDateString('de-DE') : "-"}
                         </td>
+                        )}
+                        {visibleCols.name && (
                         <td className="px-2 py-2 text-sm text-slate-900 transition-colors">
                           <div className="flex items-center gap-2 max-w-[200px]">
                             <span className="line-clamp-1 truncate" title={item.name}>
@@ -705,20 +881,28 @@ export default function App() {
                             </a>
                           </div>
                         </td>
+                        )}
+                        {visibleCols.marketplace && (
                         <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-left capitalize truncate max-w-[100px]" title={item.marketplace}>
                           {item.marketplace}
                         </td>
+                        )}
+                        {visibleCols.regularPrice && (
                         <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
                           {latest?.strikethroughPrice ? `€ ${latest.strikethroughPrice.toFixed(2)}` : "-"}
                         </td>
-                        {displayedMarketplaces.map(marketplace => (
+                        )}
+                        {visibleCols.currentPrice && displayedMarketplaces.map(marketplace => (
                           <td key={`td-${marketplace}`} className="px-2 py-2 whitespace-nowrap text-sm font-medium text-slate-900 text-right">
                             {item.marketplace === marketplace ? (latest ? `€ ${latest.currentPrice.toFixed(2)}` : "-") : "-"}
                           </td>
                         ))}
+                        {visibleCols.discount && (
                         <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
                           {latest?.discountPercentage ? <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-xs font-medium">-{latest.discountPercentage}%</span> : "-"}
                         </td>
+                        )}
+                        {visibleCols.validSince && (
                         <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
                           {(() => {
                             if (!latest) return "-";
@@ -754,6 +938,8 @@ export default function App() {
                             return <span className="text-slate-400 block w-full">-</span>;
                           })()}
                         </td>
+                        )}
+                        {visibleCols.fazit && (
                         <td className="px-2 py-2 whitespace-nowrap text-center">
                           <div className="relative inline-block group/fazit">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-help transition-colors ${latest?.isViolation ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
@@ -797,6 +983,8 @@ export default function App() {
                             </div>
                           </div>
                         </td>
+                        )}
+                        {visibleCols.graph && (
                         <td className="px-2 py-2 whitespace-nowrap text-right text-sm font-medium relative">
                            <div className="relative inline-block">
                               <button onClick={() => setOpenGraphId(item.id)} className="text-slate-400 hover:text-blue-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-50">
@@ -887,6 +1075,7 @@ export default function App() {
                               )}
                            </div>
                         </td>
+                        )}
                       </tr>
                     );
                   })}
