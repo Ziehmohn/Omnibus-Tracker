@@ -8,7 +8,7 @@ import { collection, getDocs, orderBy, query, deleteDoc, doc } from "firebase/fi
 import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
-import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store, Settings2, Columns, Download, Trash2, Edit } from "lucide-react";
+import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store, Settings2, Columns, Download, Trash2, Edit, ChevronDown, ChevronRight, GripVertical, ArrowRight } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell, ReferenceArea, CartesianGrid } from "recharts";
 
 export default function App() {
@@ -16,6 +16,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
+  
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [groupingOrder, setGroupingOrder] = useState<("productset" | "marketplace")[]>(["productset", "marketplace"]);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
   
   const handleManualCrawl = async () => {
     setIsCrawling(true);
@@ -393,6 +401,44 @@ export default function App() {
 
   const violationsCount = processedItems.filter(i => i.latestRecord?.isViolation).length;
 
+  const groupedItemsTree = useMemo(() => {
+    let filtered = items;
+    if (productSearchQuery) {
+      const q = productSearchQuery.toLowerCase();
+      filtered = filtered.filter(i => (i.name || '').toLowerCase().includes(q) || i.url.toLowerCase().includes(q) || (i.productset || '').toLowerCase().includes(q));
+    }
+
+    const groupItems = (itemsToGroup: ItemWithLatestPrice[], level: number, path: string): any[] => {
+      if (level >= groupingOrder.length) return itemsToGroup;
+
+      const keyFn = (i: ItemWithLatestPrice) => {
+         if (groupingOrder[level] === 'productset') return i.productset || 'Ohne Set';
+         if (groupingOrder[level] === 'marketplace') return i.marketplace || 'Ohne Marktplatz';
+         return 'Andere';
+      };
+
+      const map = new Map<string, ItemWithLatestPrice[]>();
+      itemsToGroup.forEach(i => {
+         const k = keyFn(i);
+         if(!map.has(k)) map.set(k, []);
+         map.get(k)!.push(i);
+      });
+
+      // Sort alphabetically
+      const sortedEntries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+      return sortedEntries.map(([key, group]) => ({
+         name: key,
+         type: groupingOrder[level],
+         children: groupItems(group, level + 1, `${path}-${key}`),
+         count: group.length,
+         id: `${path}-${key}`
+      }));
+    };
+
+    return groupItems(filtered, 0, 'root');
+  }, [items, productSearchQuery, groupingOrder]);
+
   return (
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden relative">
       {/* Full width header background */}
@@ -561,11 +607,59 @@ export default function App() {
               </div>
 
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                    Vorhandene Produkte
-                  </h3>
-                   <span className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded-full font-medium">{items.length} gesamt</span>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      Vorhandene Produkte
+                    </h3>
+                    <span className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded-full font-medium">{items.length} gesamt</span>
+                  </div>
+                  
+                  <div className="flex flex-col md:flex-row items-center gap-4">
+                    {/* Suchmaske */}
+                    <div className="relative w-full md:w-64">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Artikel, Set oder URL suchen..."
+                        className="pl-9 pr-3 py-2 w-full border border-slate-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500 outline-none"
+                        value={productSearchQuery}
+                        onChange={(e) => setProductSearchQuery(e.target.value)}
+                      />
+                      {productSearchQuery && (
+                        <button
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                          onClick={() => setProductSearchQuery("")}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* Gruppierung Controls */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-slate-500 whitespace-nowrap">Gruppieren nach:</span>
+                      <select 
+                        className="border border-slate-300 rounded-md px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500 outline-none w-32"
+                        value={groupingOrder[0]}
+                        onChange={(e) => setGroupingOrder([e.target.value as 'productset' | 'marketplace', groupingOrder[1]])}
+                      >
+                        <option value="productset">Produktset</option>
+                        <option value="marketplace">Marktplatz</option>
+                      </select>
+                      <ArrowRight className="w-4 h-4 text-slate-400 shrink-0 mx-1" />
+                      <select 
+                        className="border border-slate-300 rounded-md px-2 py-1.5 focus:ring-blue-500 focus:border-blue-500 outline-none w-32"
+                        value={groupingOrder[1]}
+                        onChange={(e) => setGroupingOrder([groupingOrder[0], e.target.value as 'productset' | 'marketplace'])}
+                      >
+                        <option value="marketplace">Marktplatz</option>
+                        <option value="productset">Produktset</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
                 
                 <div className="overflow-x-auto border border-slate-200 rounded-lg">
@@ -574,46 +668,76 @@ export default function App() {
                       <tr>
                         <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Artikel / Marken</th>
                         <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Marktplatz</th>
-                        <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">Aktionen</th>
+                        <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right w-32">Aktionen</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-200">
-                      {items.map((item, idxx) => (
-                        <tr key={item.id || `fallback-${idxx}`} className="hover:bg-slate-50 group">
-                          <td className="px-4 py-3 text-sm text-slate-900 font-medium max-w-[300px]">
-                            <a href={item.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors flex items-center gap-1 truncate" title={item.name || item.url}>
-                              <span className="truncate">{item.name || item.url}</span> <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-blue-500 flex-shrink-0" />
-                            </a>
-                            {item.productset && <div className="text-xs text-slate-500 font-normal mt-0.5">Set: {item.productset}</div>}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 capitalize">
-                            {item.marketplace}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap space-x-2 text-right">
-                            <button 
-                              className="text-slate-400 hover:text-blue-600 transition-colors p-1" 
-                              title="Bearbeiten (Demomodus)"
-                              onClick={() => alert("Bearbeiten ist in der Vorschau noch nicht implementiert.")}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button 
-                              className="text-slate-400 hover:text-red-600 transition-colors p-1" 
-                              title="Löschen"
-                              onClick={() => handleDeleteItem(item.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {items.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500 border-t border-slate-200">
-                            Keine Produkte vorhanden.
-                          </td>
-                        </tr>
-                      )}
+                      {(() => {
+                        const renderTree = (nodes: any[], level: number = 0) => {
+                          return nodes.map((node, index) => {
+                            if (node.children) {
+                              const isExpanded = expandedGroups[node.id] !== false; // Default expanded
+                              return (
+                                <React.Fragment key={`group-${node.id}`}>
+                                  <tr className="bg-slate-50/80 hover:bg-slate-100 cursor-pointer border-b border-slate-200" onClick={() => toggleGroup(node.id)}>
+                                    <td colSpan={3} className={`py-2 text-sm font-semibold text-slate-800 select-none`} style={{ paddingLeft: `${1 + level * 1.5}rem` }}>
+                                      <div className="flex items-center gap-2">
+                                        {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
+                                        <span className="capitalize">{node.type === 'productset' ? 'Set: ' : 'Marktplatz: '} <span className="font-bold text-slate-900">{node.name}</span></span>
+                                        <span className="text-xs text-slate-500 font-normal bg-white px-2 py-0.5 rounded-full border border-slate-200">{node.count}</span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                  {isExpanded && renderTree(node.children, level + 1)}
+                                </React.Fragment>
+                              );
+                            } else {
+                              const item = node as ItemWithLatestPrice;
+                              return (
+                                <tr key={item.id || `fallback-${index}`} className="hover:bg-[#f8fafc] group border-b border-slate-100 last:border-b-0">
+                                  <td className="py-3 pr-4 text-sm text-slate-900 font-medium max-w-[300px]" style={{ paddingLeft: `${1 + level * 1.5 + 1.5}rem` }}>
+                                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors flex items-center gap-1.5 truncate" title={item.name || item.url}>
+                                      <span className="truncate">{item.name || item.url}</span> <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-blue-500 flex-shrink-0" />
+                                    </a>
+                                    {item.productset && <div className="text-xs text-slate-500 font-normal mt-0.5 truncate max-w-[200px]">Set: {item.productset}</div>}
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500 capitalize">
+                                    {item.marketplace}
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap space-x-1 text-right">
+                                    <button 
+                                      className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors p-1.5 rounded" 
+                                      title="Bearbeiten (Demomodus)"
+                                      onClick={(e) => { e.stopPropagation(); alert("Bearbeiten ist in der Vorschau noch nicht implementiert."); }}
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors p-1.5 rounded" 
+                                      title="Löschen"
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            }
+                          });
+                        };
+                        
+                        if (groupedItemsTree.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-500">
+                                Keine Produkte gefunden.
+                              </td>
+                            </tr>
+                          );
+                        }
+                        
+                        return renderTree(groupedItemsTree);
+                      })()}
                     </tbody>
                   </table>
                 </div>
