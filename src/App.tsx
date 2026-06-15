@@ -8,7 +8,7 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { Item, PriceRecord, ItemWithLatestPrice } from "./types";
 import { seedDatabase } from "./services/seedService";
-import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store, Settings2, Columns } from "lucide-react";
+import { CopyPlus, TrendingDown, AlertTriangle, ShieldCheck, ArrowUpDown, ArrowUp, ArrowDown, Search, ExternalLink, X, RefreshCw, LayoutDashboard, Percent, Users, Box, Store, Settings2, Columns, Download } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, YAxis, XAxis, Cell, ReferenceArea, CartesianGrid } from "recharts";
 
 export default function App() {
@@ -493,16 +493,34 @@ export default function App() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* CSV Upload Section */}
-                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors cursor-pointer bg-white">
-                    <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
-                      <CopyPlus className="w-6 h-6" />
+                  <div className="flex flex-col gap-4">
+                    <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:bg-slate-50 transition-colors cursor-pointer bg-white h-full">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                        <CopyPlus className="w-6 h-6" />
+                      </div>
+                      <p className="font-medium text-slate-700 mb-1">CSV-Datei hochladen</p>
+                      <p className="text-sm text-slate-500 mb-4">Ziehen Sie Ihre Datei hierher oder klicken Sie hier</p>
+                      <button className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md text-sm font-medium hover:bg-slate-50 mb-2">
+                        Datei auswählen
+                      </button>
+                      <p className="text-xs text-slate-400 mt-2">Erforderliche Spalten: Link, Marktplatz</p>
                     </div>
-                    <p className="font-medium text-slate-700 mb-1">CSV-Datei hochladen</p>
-                    <p className="text-sm text-slate-500 mb-4">Ziehen Sie Ihre Datei hierher oder klicken Sie hier</p>
-                    <button className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md text-sm font-medium hover:bg-slate-50">
-                      Datei auswählen
+                    <button 
+                      onClick={() => {
+                        const csvContent = "data:text/csv;charset=utf-8,Link,Marktplatz\nhttps://www.beispiel.de/produkt,Hornbach\n";
+                        const encodedUri = encodeURI(csvContent);
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodedUri);
+                        link.setAttribute("download", "produkt_upload_template.csv");
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      }}
+                      className="w-full px-4 py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-md text-sm font-medium hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Beispiel-CSV herunterladen
                     </button>
-                    <p className="text-xs text-slate-400 mt-4">Kopfzeilen: Link, Marktplatz</p>
                   </div>
 
                   {/* Manual Entry Section */}
@@ -746,7 +764,7 @@ export default function App() {
                     <thead className="bg-slate-50">
                   <tr>
                     {visibleCols.erfasst && (
-                    <th scope="col" className="px-2 py-2 text-left align-top relative group/th2" style={{ width: colWidths['erfasst'] || 120 }}>
+                    <th scope="col" className="px-4 py-4 text-left align-top relative group/th2" style={{ width: colWidths['erfasst'] || 120 }}>
                       <div className="flex flex-col h-16 justify-between items-start">
                         <button onClick={() => handleSort('erfasst')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Hinzugefügt am {getSortIcon('erfasst')}</button>
                       </div>
@@ -754,7 +772,7 @@ export default function App() {
                     </th>
                     )}
                     {visibleCols.name && (
-                    <th scope="col" className="px-2 py-2 text-left align-top relative group/th2" style={{ width: colWidths['name'] || 200 }}>
+                    <th scope="col" className="px-4 py-4 text-left align-top relative group/th2" style={{ width: colWidths['name'] || 200 }}>
                       <div className="flex flex-col h-16 justify-between items-start w-full pr-2">
                         <button onClick={() => handleSort('name')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Artikelname {getSortIcon('name')}</button>
                         <input type="text" placeholder="Suche..." className="w-full text-xs border border-slate-300 rounded px-2 py-1 shadow-sm font-normal" value={columnFilters.name} onChange={e => updateColumnFilter('name', e.target.value)} />
@@ -763,7 +781,7 @@ export default function App() {
                     </th>
                     )}
                     {visibleCols.marketplace && (
-                    <th scope="col" className="px-2 py-2 text-left align-top relative group/th2" style={{ width: colWidths['marketplace'] || 100 }}>
+                    <th scope="col" className="px-4 py-4 text-left align-top relative group/th2" style={{ width: colWidths['marketplace'] || 100 }}>
                       <div className="flex flex-col h-16 justify-between items-start">
                         <button onClick={() => handleSort('marketplace')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Marktplatz {getSortIcon('marketplace')}</button>
                       </div>
@@ -771,7 +789,7 @@ export default function App() {
                     </th>
                     )}
                     {visibleCols.regularPrice && (
-                    <th scope="col" className="px-2 py-2 text-right align-top relative group/th2" style={{ width: colWidths['regularPrice'] || 140 }}>
+                    <th scope="col" className="px-4 py-4 text-right align-top relative group/th2" style={{ width: colWidths['regularPrice'] || 140 }}>
                       <div className="flex flex-col h-16 justify-between items-end pr-2">
                         <button onClick={() => handleSort('regularPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Reg. Preis {getSortIcon('regularPrice')}</button>
                         <div className="flex justify-end gap-1 w-full">
@@ -787,7 +805,7 @@ export default function App() {
                     </th>
                     )}
                     {visibleCols.currentPrice && displayedMarketplaces.map(marketplace => (
-                      <th key={`th-${marketplace}`} scope="col" className="px-2 py-2 text-right relative group/th2 align-top" style={{ width: colWidths[`currentPrice-${marketplace}`] || 140 }}>
+                      <th key={`th-${marketplace}`} scope="col" className="px-4 py-4 text-right relative group/th2 align-top" style={{ width: colWidths[`currentPrice-${marketplace}`] || 140 }}>
                         <div className="flex flex-col h-16 justify-between items-end pr-2">
                           <button onClick={() => handleSort('currentPrice')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Preis ({marketplace}) {getSortIcon('currentPrice')}</button>
                           <div className="flex justify-end gap-1 w-full">
@@ -803,7 +821,7 @@ export default function App() {
                       </th>
                     ))}
                     {visibleCols.discount && (
-                    <th scope="col" className="px-2 py-2 text-right relative group/th2 align-top" style={{ width: colWidths['discount'] || 120 }}>
+                    <th scope="col" className="px-4 py-4 text-right relative group/th2 align-top" style={{ width: colWidths['discount'] || 120 }}>
                       <div className="flex flex-col h-16 justify-between items-end pr-2">
                         <button onClick={() => handleSort('discount')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Discount {getSortIcon('discount')}</button>
                         <div className="flex justify-end gap-1 w-full">
@@ -819,7 +837,7 @@ export default function App() {
                     </th>
                     )}
                     {visibleCols.validSince && (
-                    <th scope="col" className="px-2 py-2 text-right relative group/th2 align-top" style={{ width: colWidths['validSince'] || 120 }}>
+                    <th scope="col" className="px-4 py-4 text-right relative group/th2 align-top" style={{ width: colWidths['validSince'] || 120 }}>
                       <div className="flex flex-col h-16 justify-between items-end pr-2">
                         <button onClick={() => handleSort('validSince')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Gültig seit {getSortIcon('validSince')}</button>
                       </div>
@@ -827,7 +845,7 @@ export default function App() {
                     </th>
                     )}
                     {visibleCols.fazit && (
-                    <th scope="col" className="px-2 py-2 text-center relative group/th2 align-top" style={{ width: colWidths['fazit'] || 120 }}>
+                    <th scope="col" className="px-4 py-4 text-center relative group/th2 align-top" style={{ width: colWidths['fazit'] || 120 }}>
                       <div className="flex flex-col h-16 justify-between items-center pr-2">
                         <button onClick={() => handleSort('fazit')} className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center hover:text-slate-900 focus:outline-none whitespace-nowrap">Fazit {getSortIcon('fazit')}</button>
                         <div className="flex flex-col items-start text-[10px] leading-tight font-normal text-slate-600 gap-0.5 mx-auto w-max bg-white p-1 rounded border border-slate-200">
@@ -845,7 +863,7 @@ export default function App() {
                     </th>
                     )}
                     {visibleCols.graph && (
-                    <th scope="col" className="px-2 py-2 text-right text-xs font-medium text-slate-500 uppercase tracking-wider align-top relative group/th2" style={{ width: colWidths['graph'] || 64 }}>
+                    <th scope="col" className="px-4 py-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider align-top relative group/th2" style={{ width: colWidths['graph'] || 64 }}>
                       <div className="flex flex-col h-16 justify-between items-end pr-2">
                         <span>Graph</span>
                       </div>
@@ -866,12 +884,12 @@ export default function App() {
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 group">
                         {visibleCols.erfasst && (
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500">
                            {item.history.length > 0 ? new Date(item.history[item.history.length - 1].date || 1715126400000).toLocaleDateString('de-DE') : "-"}
                         </td>
                         )}
                         {visibleCols.name && (
-                        <td className="px-2 py-2 text-sm text-slate-900 transition-colors">
+                        <td className="px-4 py-4 text-sm text-slate-900 transition-colors">
                           <div className="flex items-center gap-2 max-w-[200px]">
                             <span className="line-clamp-1 truncate" title={item.name}>
                               {item.name}
@@ -883,27 +901,27 @@ export default function App() {
                         </td>
                         )}
                         {visibleCols.marketplace && (
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-left capitalize truncate max-w-[100px]" title={item.marketplace}>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500 text-left capitalize truncate max-w-[100px]" title={item.marketplace}>
                           {item.marketplace}
                         </td>
                         )}
                         {visibleCols.regularPrice && (
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
                           {latest?.strikethroughPrice ? `€ ${latest.strikethroughPrice.toFixed(2)}` : "-"}
                         </td>
                         )}
                         {visibleCols.currentPrice && displayedMarketplaces.map(marketplace => (
-                          <td key={`td-${marketplace}`} className="px-2 py-2 whitespace-nowrap text-sm font-medium text-slate-900 text-right">
+                          <td key={`td-${marketplace}`} className="px-4 py-4 whitespace-nowrap text-sm font-medium text-slate-900 text-right">
                             {item.marketplace === marketplace ? (latest ? `€ ${latest.currentPrice.toFixed(2)}` : "-") : "-"}
                           </td>
                         ))}
                         {visibleCols.discount && (
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
                           {latest?.discountPercentage ? <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-xs font-medium">-{latest.discountPercentage}%</span> : "-"}
                         </td>
                         )}
                         {visibleCols.validSince && (
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500 text-right">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
                           {(() => {
                             if (!latest) return "-";
                             
@@ -940,7 +958,7 @@ export default function App() {
                         </td>
                         )}
                         {visibleCols.fazit && (
-                        <td className="px-2 py-2 whitespace-nowrap text-center">
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
                           <div className="relative inline-block group/fazit">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-help transition-colors ${latest?.isViolation ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
                               {latest?.isViolation ? 'Violation' : 'Compliant'}
@@ -985,7 +1003,7 @@ export default function App() {
                         </td>
                         )}
                         {visibleCols.graph && (
-                        <td className="px-2 py-2 whitespace-nowrap text-right text-sm font-medium relative">
+                        <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium relative">
                            <div className="relative inline-block">
                               <button onClick={() => setOpenGraphId(item.id)} className="text-slate-400 hover:text-blue-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-50">
                                 <TrendingDown className="w-5 h-5" />
@@ -1087,10 +1105,10 @@ export default function App() {
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th scope="col" className="px-2 py-2 text-left w-20 text-xs font-medium text-slate-500 uppercase tracking-wider">Lfd. Nr.</th>
-                      <th scope="col" className="px-2 py-2 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Artikelname</th>
+                      <th scope="col" className="px-4 py-4 text-left w-20 text-xs font-medium text-slate-500 uppercase tracking-wider">Lfd. Nr.</th>
+                      <th scope="col" className="px-4 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Artikelname</th>
                       {marketplaces.map(marketplace => (
-                        <th key={marketplace} scope="col" className="px-2 py-2 text-center text-xs font-medium text-slate-500 uppercase tracking-wider capitalize">{marketplace}</th>
+                        <th key={marketplace} scope="col" className="px-4 py-4 text-center text-xs font-medium text-slate-500 uppercase tracking-wider capitalize">{marketplace}</th>
                       ))}
                     </tr>
                   </thead>
@@ -1103,14 +1121,14 @@ export default function App() {
                       </tr>
                     ) : discountOverviewItems.map((group, idx) => (
                       <tr key={group.name} className="hover:bg-slate-50">
-                        <td className="px-2 py-2 whitespace-nowrap text-sm text-slate-500">{idx + 1}</td>
-                        <td className="px-2 py-2 text-sm font-medium text-slate-900 border-r border-slate-100">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500">{idx + 1}</td>
+                        <td className="px-4 py-4 text-sm font-medium text-slate-900 border-r border-slate-100">
                           <div className="line-clamp-1 truncate max-w-[300px]" title={group.name}>{group.name}</div>
                         </td>
                         {marketplaces.map(marketplace => {
                           const mData = group.marketplaces[marketplace];
                           return (
-                            <td key={marketplace} className="px-2 py-2 whitespace-nowrap border-r border-slate-100 text-center">
+                            <td key={marketplace} className="px-4 py-4 whitespace-nowrap border-r border-slate-100 text-center">
                               {mData?.discountPercentage ? (
                                 <a href={mData.url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 text-emerald-600 hover:opacity-80 transition-opacity" title={`Auf ${marketplace} ansehen`}>
                                   <ShieldCheck className="w-5 h-5 mx-auto" aria-label="Discount active" />
