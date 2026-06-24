@@ -147,8 +147,14 @@ export async function runOttoScraping() {
       const discountStartDate = csvDatesByUrl.get(url) || null;
 
       const batch = writeBatch(db);
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const dateString = `${yyyy}${mm}${dd}`;
+
       const itemsHistoryRef = collection(db, `items/${itemId}/priceRecords`);
-      const newHistoryDoc = doc(itemsHistoryRef);
+      const newHistoryDoc = doc(itemsHistoryRef, dateString);
 
       batch.update(doc(db, "items", itemId), {
         latestPrice: currentPrice,

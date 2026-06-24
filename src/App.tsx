@@ -42,6 +42,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"omnibus" | "discount-overview" | "competitors" | "upload">("omnibus");
   const [openGraphId, setOpenGraphId] = useState<string | null>(null);
 
+  const [activeFazitId, setActiveFazitId] = useState<string | null>(null);
+
   const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>({
     erfasst: true,
@@ -49,6 +51,7 @@ export default function App() {
     marketplace: true,
     regularPrice: true,
     currentPrice: true,
+    lowestPrice30d: true,
     discount: true,
     validSince: true,
     fazit: true,
@@ -907,6 +910,7 @@ export default function App() {
                                if(key === 'marketplace') label = 'Marktplatz';
                                if(key === 'regularPrice') label = 'Reg. Preis';
                                if(key === 'currentPrice') label = 'Verkaufspreis';
+                               if(key === 'lowestPrice30d') label = 'Niedrigster Preis 30T';
                                if(key === 'discount') label = 'Discount';
                                if(key === 'validSince') label = 'Gültig seit';
                                if(key === 'fazit') label = 'Fazit';
@@ -1015,6 +1019,14 @@ export default function App() {
                         <div onMouseDown={(e) => startResize(`currentPrice-${marketplace}`, e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
                       </th>
                     ))}
+                    {visibleCols.lowestPrice30d && (
+                    <th scope="col" className="px-4 py-4 text-right relative group/th2 align-top" style={{ width: colWidths['lowestPrice30d'] || 140 }}>
+                      <div className="flex flex-col h-16 justify-between items-end pr-2">
+                        <span className="text-xs font-medium text-slate-600 uppercase tracking-wider flex items-center whitespace-nowrap">Niedrigster (30T)</span>
+                      </div>
+                      <div onMouseDown={(e) => startResize('lowestPrice30d', e)} className="absolute right-0 top-0 bottom-0 w-1 bg-slate-200/50 cursor-col-resize hover:bg-blue-400 z-10" />
+                    </th>
+                    )}
                     {visibleCols.discount && (
                     <th scope="col" className="px-4 py-4 text-right relative group/th2 align-top" style={{ width: colWidths['discount'] || 120 }}>
                       <div className="flex flex-col h-16 justify-between items-end pr-2">
@@ -1076,6 +1088,16 @@ export default function App() {
                     </tr>
                   ) : processedItems.map(item => {
                     const latest = item.latestRecord;
+                    
+                    let lowest30d: number | null = null;
+                    if (item.history && item.history.length > 0) {
+                      const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+                      const recentHistory = item.history.filter(h => h.date >= thirtyDaysAgo);
+                      if (recentHistory.length > 0) {
+                         lowest30d = Math.min(...recentHistory.map(h => h.currentPrice));
+                      }
+                    }
+
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 group">
                         {visibleCols.erfasst && (
@@ -1110,6 +1132,11 @@ export default function App() {
                             {item.marketplace === marketplace ? (latest ? `€ ${latest.currentPrice.toFixed(2)}` : "-") : "-"}
                           </td>
                         ))}
+                        {visibleCols.lowestPrice30d && (
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
+                          {lowest30d !== null ? `€ ${lowest30d.toFixed(2)}` : "-"}
+                        </td>
+                        )}
                         {visibleCols.discount && (
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-500 text-right">
                           {latest?.discountPercentage ? <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-xs font-medium">-{latest.discountPercentage}%</span> : "-"}
@@ -1153,48 +1180,57 @@ export default function App() {
                         </td>
                         )}
                         {visibleCols.fazit && (
-                        <td className="px-4 py-4 whitespace-nowrap text-center">
-                          <div className="relative inline-block group/fazit">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-help transition-colors ${latest?.isViolation ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                              {latest?.isViolation ? 'Violation' : 'Compliant'}
-                            </span>
-                            <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/fazit:block w-64 bg-slate-800 text-white text-xs rounded-lg p-3 shadow-xl whitespace-normal text-left">
-                              <p className="font-medium mb-1 border-b border-slate-700 pb-1">
-                                {latest?.isViolation ? '⚠️ Omnibus Violation' : '✅ Omnibus Compliant'}
-                              </p>
-                              {latest?.strikethroughPrice && latest?.strikethroughPrice > latest.currentPrice ? (
-                                <div className="space-y-1 mt-2">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-300">Streichpreis:</span>
-                                    <span className={latest?.isViolation ? 'text-red-300 font-medium' : ''}>€{latest?.strikethroughPrice?.toFixed(2)}</span>
+                        <td className="px-4 py-4 whitespace-nowrap text-center relative">
+                          <button 
+                            onClick={() => setActiveFazitId(item.id)}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer transition-colors hover:opacity-80 ${latest?.isViolation ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}
+                          >
+                            {latest?.isViolation ? 'Violation' : 'Compliant'}
+                          </button>
+                          
+                          {activeFazitId === item.id && (
+                            <>
+                              <div className="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-[1px]" onClick={(e) => { e.stopPropagation(); setActiveFazitId(null); }}></div>
+                              <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 bg-slate-800 text-white text-sm rounded-xl p-5 shadow-2xl whitespace-normal text-left">
+                                <button onClick={(e) => { e.stopPropagation(); setActiveFazitId(null); }} className="absolute top-3 right-3 text-slate-400 hover:text-white transition-colors">
+                                  <X className="w-4 h-4" />
+                                </button>
+                                <p className="font-semibold mb-3 border-b border-slate-700 pb-2 flex items-center gap-2">
+                                  {latest?.isViolation ? '⚠️ Omnibus Violation' : '✅ Omnibus Compliant'}
+                                </p>
+                                {latest?.strikethroughPrice && latest?.strikethroughPrice > latest.currentPrice ? (
+                                  <div className="space-y-2 mt-2">
+                                    <div className="flex justify-between items-center bg-slate-700/50 p-2 rounded">
+                                      <span className="text-slate-300">Streichpreis:</span>
+                                      <span className={latest?.isViolation ? 'text-red-300 font-bold' : 'font-medium'}>€{latest?.strikethroughPrice?.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-slate-700/50 p-2 rounded">
+                                      <span className="text-slate-300">Tiefstpreis (30T):</span>
+                                      <span className="font-medium">
+                                        {lowest30d !== null ? `€${lowest30d.toFixed(2)}` : 'Nicht genug Daten'}
+                                      </span>
+                                    </div>
+                                    
+                                    {item.has30DaysHistory || lowest30d !== null ? (
+                                      <p className="text-xs text-slate-400 mt-4 leading-relaxed">
+                                        {latest?.isViolation 
+                                          ? "Der angegebene Streichpreis ist höher als der tiefste Preis der letzten 30 Tage. Nach der Omnibus-Richtlinie muss der Streichpreis dem niedrigsten Preis der letzten 30 Tage entsprechen." 
+                                          : "Der Streichpreis ist compliant, da er nicht höher ist als der tiefste Preis der letzten 30 Tage vor der Preisreduktion."}
+                                      </p>
+                                    ) : (
+                                      <p className="text-xs text-amber-300/80 mt-4 leading-relaxed">
+                                        Für eine abschließende Bewertung liegen nicht genug historische Daten vor (weniger als 30 Tage).
+                                      </p>
+                                    )}
                                   </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-300">Tiefstpreis (30T):</span>
-                                    <span className="font-medium">
-                                      {item.lowest30DayPrice !== undefined ? `€${item.lowest30DayPrice.toFixed(2)}` : 'Nicht genug Daten'}
-                                    </span>
-                                  </div>
-                                  
-                                  {item.has30DaysHistory ? (
-                                    <p className="text-[10px] text-slate-400 mt-2 leading-tight">
-                                      {latest?.isViolation 
-                                        ? "Der angegebene Streichpreis ist höher als der tiefste Preis der letzten 30 Tage. Nach der Omnibus-Richtlinie muss der Streichpreis dem niedrigsten Preis der letzten 30 Tage entsprechen." 
-                                        : "Der Streichpreis ist compliant, da er nicht höher ist als der tiefste Preis der letzten 30 Tage vor der Preisreduktion."}
-                                    </p>
-                                  ) : (
-                                    <p className="text-[10px] text-amber-300 mt-2 leading-tight">
-                                      Hinweis: Die Preishistorie umfasst weniger als 30 Tage. Ein Verstoß kann deshalb noch nicht abschließend ermittelt werden und wird vorerst als compliant markiert.
-                                    </p>
-                                  )}
-                                </div>
-                              ) : (
-                                <p className="text-slate-300 mt-1">Kein Streichpreis hinterlegt oder keine Preisreduktion vorhanden.</p>
-                              )}
-                              
-                              {/* Small triangle arrow at the bottom */}
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
-                            </div>
-                          </div>
+                                ) : (
+                                  <p className="text-slate-400 text-xs mt-2">
+                                    Kein Streichpreis vorhanden oder Streichpreis ist nicht höher als der aktuelle Preis. Keine Omnibus-Relevanz.
+                                  </p>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </td>
                         )}
                         {visibleCols.graph && (
@@ -1205,9 +1241,9 @@ export default function App() {
                               </button>
                               {openGraphId === item.id && (
                                 <>
-                                  <div className="fixed inset-0 z-10" onClick={() => setOpenGraphId(null)}></div>
-                                  <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-[600px] bg-white border border-slate-200 rounded-xl shadow-2xl p-5 z-20">
-                                    <button onClick={() => setOpenGraphId(null)} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 rounded bg-slate-50 hover:bg-slate-100 p-1">
+                                  <div className="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-[1px]" onClick={(e) => { e.stopPropagation(); setOpenGraphId(null); }}></div>
+                                  <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] max-w-[90vw] bg-white border border-slate-200 rounded-xl shadow-2xl p-5 z-50">
+                                    <button onClick={(e) => { e.stopPropagation(); setOpenGraphId(null); }} className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 rounded bg-slate-50 hover:bg-slate-100 p-1">
                                       <X className="w-4 h-4" />
                                     </button>
                                     
@@ -1217,7 +1253,7 @@ export default function App() {
                                         <div className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center cursor-help">
                                           <span className="text-[10px] font-bold">i</span>
                                         </div>
-                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/info:block w-48 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg text-left z-30">
+                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover/info:block w-48 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg text-left z-50">
                                           Dieser Graph zeigt den Verkaufspreis (blau) sowie den Streichpreis (grau) im Zeitverlauf. Die dezent rot hinterlegten Zeiträume markieren einen Verstoß gegen die Omnibus-Richtlinie.
                                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
                                         </div>
@@ -1227,12 +1263,18 @@ export default function App() {
                                     <div className="h-[350px] w-full mt-2">
                                       <ResponsiveContainer width="100%" height="100%">
                                         {(() => {
-                                           const chartData = [...item.history].reverse().map(r => ({
-                                             date: new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
-                                             price: r.currentPrice,
-                                             regular: r.strikethroughPrice,
-                                             isViolation: r.isViolation
-                                           }));
+                                           // Deduplicate chartData by taking the latest entry per day
+                                           const uniqueDaysMap = new Map<string, any>();
+                                           [...item.history].reverse().forEach(r => {
+                                             const dayStr = new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric', year: 'numeric' });
+                                             uniqueDaysMap.set(dayStr, {
+                                               date: new Date(r.date || 0).toLocaleDateString('de-DE', { month: 'short', day: 'numeric' }),
+                                               price: r.currentPrice,
+                                               regular: r.strikethroughPrice,
+                                               isViolation: r.isViolation
+                                             });
+                                           });
+                                           const chartData = Array.from(uniqueDaysMap.values());
 
                                            let maxPrice = 0;
                                            for (const d of chartData) {
